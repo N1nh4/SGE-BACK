@@ -125,6 +125,8 @@ class Comprovacao(Base):
         ),
         default=StatusComprovacao.ANALISE,
     )
+    justificativa: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prazo_reenvio: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
     )

@@ -168,3 +168,34 @@ def excluir_comprovacao(
     (_raiz() / comprovacao.arquivo_caminho).unlink(missing_ok=True)
     db.delete(comprovacao)
     db.commit()
+
+
+@router.put(
+    "/api/comprovacoes/{comprovacao_id}",
+    response_model=schemas.ComprovacaoRead,
+)
+def atualizar_status_comprovacao(
+    comprovacao_id: int,
+    dados: schemas.ComprovacaoUpdate,
+    db: Session = Depends(get_db),
+):
+    comprovacao = db.get(models.Comprovacao, comprovacao_id)
+    if comprovacao is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comprovação não encontrada",
+        )
+    if (
+        dados.status == models.StatusComprovacao.RECUSADO
+        and not dados.justificativa
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Justificativa é obrigatória para reprovar a comprovação",
+        )
+    comprovacao.status = dados.status
+    comprovacao.justificativa = dados.justificativa
+    comprovacao.prazo_reenvio = dados.prazo_reenvio
+    db.commit()
+    db.refresh(comprovacao)
+    return comprovacao

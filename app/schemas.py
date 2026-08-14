@@ -122,6 +122,12 @@ class ComprovacaoCreate(BaseModel):
     mes: int = Field(ge=1, le=12)
 
 
+class ComprovacaoUpdate(BaseModel):
+    status: StatusComprovacao
+    justificativa: str | None = None
+    prazo_reenvio: date | None = None
+
+
 class ComprovacaoRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -131,6 +137,8 @@ class ComprovacaoRead(BaseModel):
     mes: int
     arquivo_nome: str
     status: StatusComprovacao
+    justificativa: str | None
+    prazo_reenvio: date | None
     created_at: datetime
     updated_at: datetime
 

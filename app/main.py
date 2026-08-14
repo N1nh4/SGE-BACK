@@ -35,6 +35,8 @@ def _migrar_colunas() -> None:
         },
         "comprovacoes": {
             "status": "VARCHAR(20) NOT NULL DEFAULT 'analise'",
+            "justificativa": "TEXT",
+            "prazo_reenvio": "DATE",
         },
     }
     colunas_de_data = {"created_at", "updated_at"}
