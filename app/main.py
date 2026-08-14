@@ -33,6 +33,9 @@ def _migrar_colunas() -> None:
         "indicadores": {
             "unidade_id": "INTEGER",
         },
+        "comprovacoes": {
+            "status": "VARCHAR(20) NOT NULL DEFAULT 'analise'",
+        },
     }
     colunas_de_data = {"created_at", "updated_at"}
 

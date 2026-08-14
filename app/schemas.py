@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import PapelUsuario
+from .models import PapelUsuario, StatusComprovacao
 
 
 class ObjetivoCreate(BaseModel):
@@ -130,6 +130,7 @@ class ComprovacaoRead(BaseModel):
     ano: int
     mes: int
     arquivo_nome: str
+    status: StatusComprovacao
     created_at: datetime
     updated_at: datetime
 

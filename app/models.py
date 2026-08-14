@@ -14,6 +14,12 @@ class PapelUsuario(str, Enum):
     DEFAULT = "default"
 
 
+class StatusComprovacao(str, Enum):
+    ANALISE = "analise"
+    APROVADO = "aprovado"
+    RECUSADO = "recusado"
+
+
 def _agora() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -113,6 +119,12 @@ class Comprovacao(Base):
     mes: Mapped[int] = mapped_column(Integer)
     arquivo_nome: Mapped[str] = mapped_column(String(255))
     arquivo_caminho: Mapped[str] = mapped_column(String(500))
+    status: Mapped[StatusComprovacao] = mapped_column(
+        SqlEnum(
+            StatusComprovacao, values_callable=lambda e: [m.value for m in e]
+        ),
+        default=StatusComprovacao.ANALISE,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
     )
