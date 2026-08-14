@@ -1,9 +1,17 @@
 from datetime import date, datetime, timezone
+from enum import Enum
 
 from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
+
+
+class PapelUsuario(str, Enum):
+    MASTER = "master"
+    ADM = "adm"
+    DEFAULT = "default"
 
 
 def _agora() -> datetime:
@@ -113,3 +121,21 @@ class Comprovacao(Base):
     )
 
     indicador: Mapped["Indicador"] = relationship(back_populates="comprovacoes")
+
+
+class Usuario(Base):
+    __tablename__ = "usuarios"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    papel: Mapped[PapelUsuario] = mapped_column(
+        SqlEnum(PapelUsuario, values_callable=lambda e: [m.value for m in e]),
+        default=PapelUsuario.DEFAULT,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_agora
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_agora, onupdate=_agora
+    )

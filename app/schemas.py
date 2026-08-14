@@ -2,6 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .models import PapelUsuario
+
 
 class ObjetivoCreate(BaseModel):
     codigo: str = Field(min_length=1, max_length=20)
@@ -45,6 +47,12 @@ class IniciativaCreate(BaseModel):
     objetivo_id: int
     nome: str = Field(min_length=1, max_length=255)
     indicadores: list[IndicadorCreate] = Field(default_factory=list, min_length=1)
+
+
+class IniciativaUpdate(BaseModel):
+    objetivo_id: int | None = None
+    nome: str | None = Field(default=None, max_length=255)
+    indicadores: list[IndicadorCreate] | None = None
 
 
 class ObjetivoResumo(BaseModel):
@@ -122,5 +130,28 @@ class ComprovacaoRead(BaseModel):
     ano: int
     mes: int
     arquivo_nome: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class UsuarioCreate(BaseModel):
+    nome: str = Field(min_length=1, max_length=255)
+    email: str = Field(min_length=3, max_length=255)
+    papel: PapelUsuario = PapelUsuario.DEFAULT
+
+
+class UsuarioUpdate(BaseModel):
+    nome: str | None = Field(default=None, max_length=255)
+    email: str | None = Field(default=None, max_length=255)
+    papel: PapelUsuario | None = None
+
+
+class UsuarioRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+    email: str
+    papel: PapelUsuario
     created_at: datetime
     updated_at: datetime

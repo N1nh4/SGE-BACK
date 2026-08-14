@@ -76,3 +76,57 @@ def criar_planejamento(
         .where(models.Iniciativa.id == iniciativa.id)
         .options(*_opcoes())
     )
+
+
+@router.put("/{iniciativa_id}", response_model=schemas.IniciativaRead)
+def atualizar_planejamento(
+    iniciativa_id: int,
+    dados: schemas.IniciativaUpdate,
+    db: Session = Depends(get_db),
+):
+    iniciativa = db.scalar(
+        select(models.Iniciativa)
+        .where(models.Iniciativa.id == iniciativa_id)
+        .options(selectinload(models.Iniciativa.indicadores))
+    )
+    if iniciativa is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Planejamento não encontrado",
+        )
+
+    campos = dados.model_dump(exclude_unset=True)
+    if "objetivo_id" in campos and campos["objetivo_id"] is not None:
+        if db.get(models.Objetivo, campos["objetivo_id"]) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Objetivo estratégico não encontrado",
+            )
+
+    if "nome" in campos:
+        iniciativa.nome = campos["nome"]
+    if "objetivo_id" in campos:
+        iniciativa.objetivo_id = campos["objetivo_id"]
+    if "indicadores" in campos:
+        iniciativa.indicadores = [
+            models.Indicador(**indicador) for indicador in campos["indicadores"]
+        ]
+
+    db.commit()
+    return db.scalar(
+        select(models.Iniciativa)
+        .where(models.Iniciativa.id == iniciativa.id)
+        .options(*_opcoes())
+    )
+
+
+@router.delete("/{iniciativa_id}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_planejamento(iniciativa_id: int, db: Session = Depends(get_db)):
+    iniciativa = db.get(models.Iniciativa, iniciativa_id)
+    if iniciativa is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Planejamento não encontrado",
+        )
+    db.delete(iniciativa)
+    db.commit()

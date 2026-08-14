@@ -2,6 +2,7 @@ from sqlalchemy import func, select
 
 from . import models
 from .database import SessionLocal
+from .models import PapelUsuario
 
 DADOS_OBJETIVOS = [
     {
@@ -93,4 +94,32 @@ def seed_objetivos() -> None:
         if total:
             return
         db.add_all(models.Objetivo(**dados) for dados in DADOS_OBJETIVOS)
+        db.commit()
+
+
+DADOS_USUARIOS = [
+    {
+        "nome": "Usuário Master",
+        "email": "master@sge.com",
+        "papel": PapelUsuario.MASTER,
+    },
+    {
+        "nome": "Usuário Administrador",
+        "email": "adm@sge.com",
+        "papel": PapelUsuario.ADM,
+    },
+    {
+        "nome": "Usuário Padrão",
+        "email": "default@sge.com",
+        "papel": PapelUsuario.DEFAULT,
+    },
+]
+
+
+def seed_usuarios() -> None:
+    with SessionLocal() as db:
+        total = db.scalar(select(func.count()).select_from(models.Usuario))
+        if total:
+            return
+        db.add_all(models.Usuario(**dados) for dados in DADOS_USUARIOS)
         db.commit()

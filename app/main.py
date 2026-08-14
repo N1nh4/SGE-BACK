@@ -6,8 +6,8 @@ from sqlalchemy import inspect, text
 
 from . import models  # noqa: F401
 from .database import Base, engine
-from .routers import comprovacoes, objetivos, planejamento, unidades
-from .seed import seed_objetivos
+from .routers import comprovacoes, objetivos, planejamento, unidades, usuarios
+from .seed import seed_objetivos, seed_usuarios
 
 
 def _migrar_colunas() -> None:
@@ -75,6 +75,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     _migrar_colunas()
     seed_objetivos()
+    seed_usuarios()
     yield
 
 
@@ -95,6 +96,7 @@ app.include_router(objetivos.router)
 app.include_router(planejamento.router)
 app.include_router(comprovacoes.router)
 app.include_router(unidades.router)
+app.include_router(usuarios.router)
 
 
 @app.get("/")
