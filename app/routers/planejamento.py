@@ -13,7 +13,7 @@ def _opcoes():
         selectinload(models.Iniciativa.objetivo),
         selectinload(models.Iniciativa.indicadores),
         selectinload(models.Iniciativa.indicadores).selectinload(
-            models.Indicador.responsavel
+            models.Indicador.unidade
         ),
     )
 

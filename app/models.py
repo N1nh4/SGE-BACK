@@ -56,8 +56,8 @@ class Iniciativa(Base):
         return 0.0
 
 
-class Responsavel(Base):
-    __tablename__ = "responsaveis"
+class Unidade(Base):
+    __tablename__ = "unidades"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(255))
@@ -78,8 +78,8 @@ class Indicador(Base):
     formula: Mapped[str] = mapped_column(Text)
     orientacao: Mapped[str] = mapped_column(Text)
     prazo: Mapped[date | None] = mapped_column(Date, nullable=True)
-    responsavel_id: Mapped[int | None] = mapped_column(
-        ForeignKey("responsaveis.id"), nullable=True
+    unidade_id: Mapped[int | None] = mapped_column(
+        ForeignKey("unidades.id"), nullable=True
     )
     iniciativa_id: Mapped[int] = mapped_column(ForeignKey("iniciativas.id"))
     created_at: Mapped[datetime] = mapped_column(
@@ -90,7 +90,7 @@ class Indicador(Base):
     )
 
     iniciativa: Mapped["Iniciativa"] = relationship(back_populates="indicadores")
-    responsavel: Mapped["Responsavel | None"] = relationship()
+    unidade: Mapped["Unidade | None"] = relationship()
     comprovacoes: Mapped[list["Comprovacao"]] = relationship(
         back_populates="indicador", cascade="all, delete-orphan"
     )

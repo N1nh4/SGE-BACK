@@ -6,7 +6,7 @@ from sqlalchemy import inspect, text
 
 from . import models  # noqa: F401
 from .database import Base, engine
-from .routers import comprovacoes, objetivos, planejamento, responsaveis
+from .routers import comprovacoes, objetivos, planejamento, unidades
 from .seed import seed_objetivos
 
 
@@ -31,7 +31,7 @@ def _migrar_colunas() -> None:
             "loa": "VARCHAR(255) NOT NULL DEFAULT ''",
         },
         "indicadores": {
-            "responsavel_id": "INTEGER",
+            "unidade_id": "INTEGER",
         },
     }
     colunas_de_data = {"created_at", "updated_at"}
@@ -54,6 +54,20 @@ def _migrar_colunas() -> None:
                             f"WHERE {nome} IS NULL"
                         )
                     )
+
+        # Migração: antigo responsavel_id passou a ser unidade_id.
+        if "indicadores" in insp.get_table_names():
+            colunas_ind = {
+                col["name"] for col in insp.get_columns("indicadores")
+            }
+            if "unidade_id" in colunas_ind and "responsavel_id" in colunas_ind:
+                conn.execute(
+                    text(
+                        "UPDATE indicadores SET unidade_id = responsavel_id "
+                        "WHERE unidade_id IS NULL AND responsavel_id IS NOT NULL "
+                        "AND responsavel_id IN (SELECT id FROM unidades)"
+                    )
+                )
 
 
 @asynccontextmanager
@@ -79,8 +93,8 @@ app.add_middleware(
 
 app.include_router(objetivos.router)
 app.include_router(planejamento.router)
-app.include_router(responsaveis.router)
 app.include_router(comprovacoes.router)
+app.include_router(unidades.router)
 
 
 @app.get("/")

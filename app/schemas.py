@@ -38,7 +38,7 @@ class IndicadorCreate(BaseModel):
     formula: str = Field(min_length=1)
     orientacao: str = Field(min_length=1)
     prazo: date | None = None
-    responsavel_id: int | None = None
+    unidade_id: int | None = None
 
 
 class IniciativaCreate(BaseModel):
@@ -58,7 +58,7 @@ class ObjetivoResumo(BaseModel):
     loa: str
 
 
-class ResponsavelResumo(BaseModel):
+class UnidadeResumo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -74,17 +74,21 @@ class IndicadorRead(BaseModel):
     formula: str
     orientacao: str
     prazo: date | None
-    responsavel_id: int | None
-    responsavel: ResponsavelResumo | None
+    unidade_id: int | None
+    unidade: UnidadeResumo | None
     created_at: datetime
     updated_at: datetime
 
 
-class ResponsavelCreate(BaseModel):
+class UnidadeCreate(BaseModel):
     nome: str = Field(min_length=1, max_length=255)
 
 
-class ResponsavelRead(BaseModel):
+class UnidadeUpdate(BaseModel):
+    nome: str | None = Field(default=None, max_length=255)
+
+
+class UnidadeRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
