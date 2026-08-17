@@ -60,6 +60,7 @@ def listar_comprovacoes(
 )
 async def criar_comprovacao(
     indicador_id: int,
+    etapa_id: int | None = Form(None),
     ano: int = Form(ge=2000, le=2100),
     mes: int = Form(ge=1, le=12),
     arquivo: UploadFile = File(...),
@@ -99,13 +100,21 @@ async def criar_comprovacao(
     nome_armazenado = f"{uuid.uuid4().hex}.pdf"
     caminho_relativo = Path("uploads") / "comprovacoes" / nome_armazenado
 
-    comprovacao = db.scalar(
-        select(models.Comprovacao).where(
-            models.Comprovacao.indicador_id == indicador_id,
-            models.Comprovacao.ano == ano,
-            models.Comprovacao.mes == mes,
+    if etapa_id is not None:
+        comprovacao = db.scalar(
+            select(models.Comprovacao).where(
+                models.Comprovacao.indicador_id == indicador_id,
+                models.Comprovacao.etapa_id == etapa_id,
+            )
         )
-    )
+    else:
+        comprovacao = db.scalar(
+            select(models.Comprovacao).where(
+                models.Comprovacao.indicador_id == indicador_id,
+                models.Comprovacao.ano == ano,
+                models.Comprovacao.mes == mes,
+            )
+        )
     if comprovacao is not None:
         (_raiz() / comprovacao.arquivo_caminho).unlink(missing_ok=True)
         comprovacao.arquivo_nome = nome_original
@@ -113,6 +122,7 @@ async def criar_comprovacao(
     else:
         comprovacao = models.Comprovacao(
             indicador_id=indicador_id,
+            etapa_id=etapa_id,
             ano=ano,
             mes=mes,
             arquivo_nome=nome_original,
@@ -166,6 +176,12 @@ def excluir_comprovacao(
             detail="Comprovação não encontrada",
         )
     (_raiz() / comprovacao.arquivo_caminho).unlink(missing_ok=True)
+
+    if comprovacao.status == models.StatusComprovacao.APROVADO:
+        indicador = db.get(models.Indicador, comprovacao.indicador_id)
+        if indicador and indicador.valor_acumulado > 0:
+            indicador.valor_acumulado -= 1
+
     db.delete(comprovacao)
     db.commit()
 
@@ -193,9 +209,23 @@ def atualizar_status_comprovacao(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Justificativa é obrigatória para reprovar a comprovação",
         )
+    status_aprovado = models.StatusComprovacao.APROVADO
+    antigo_aprovado = comprovacao.status == status_aprovado
+    novo_aprovado = dados.status == status_aprovado
+
     comprovacao.status = dados.status
     comprovacao.justificativa = dados.justificativa
     comprovacao.prazo_reenvio = dados.prazo_reenvio
+
+    if novo_aprovado and not antigo_aprovado:
+        indicador = db.get(models.Indicador, comprovacao.indicador_id)
+        if indicador:
+            indicador.valor_acumulado += 1
+    elif antigo_aprovado and not novo_aprovado:
+        indicador = db.get(models.Indicador, comprovacao.indicador_id)
+        if indicador and indicador.valor_acumulado > 0:
+            indicador.valor_acumulado -= 1
+
     db.commit()
     db.refresh(comprovacao)
     return comprovacao

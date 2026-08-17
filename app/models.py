@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from enum import Enum
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,6 +11,7 @@ from .database import Base
 class PapelUsuario(str, Enum):
     MASTER = "master"
     ADM = "adm"
+    PONTO_FOCAL = "ponto_focal"
     DEFAULT = "default"
 
 
@@ -65,9 +66,22 @@ class Iniciativa(Base):
 
     @property
     def progresso(self) -> float:
-        # TODO: calcular a partir do valor realizado dos indicadores quando
-        # houver dados de execução. Enquanto isso, placeholder.
-        return 0.0
+        indicadores = self.indicadores
+        if not indicadores:
+            return 0.0
+        total = sum(len(i.etapas) for i in indicadores)
+        if total == 0:
+            return 0.0
+        acumulado = sum(i.valor_acumulado for i in indicadores)
+        return round((acumulado / total) * 100, 1)
+
+
+indicador_unidades = Table(
+    "indicador_unidades",
+    Base.metadata,
+    Column("indicador_id", ForeignKey("indicadores.id", ondelete="CASCADE"), primary_key=True),
+    Column("unidade_id", ForeignKey("unidades.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Unidade(Base):
@@ -82,6 +96,10 @@ class Unidade(Base):
         DateTime(timezone=True), default=_agora, onupdate=_agora
     )
 
+    indicadores: Mapped[list["Indicador"]] = relationship(
+        secondary=indicador_unidades, back_populates="unidades"
+    )
+
 
 class Indicador(Base):
     __tablename__ = "indicadores"
@@ -89,12 +107,11 @@ class Indicador(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(255))
     meta: Mapped[str] = mapped_column(String(255))
-    formula: Mapped[str] = mapped_column(Text)
+    rotulo_x: Mapped[str] = mapped_column(String(255))
+    rotulo_y: Mapped[str] = mapped_column(String(255))
     orientacao: Mapped[str] = mapped_column(Text)
     prazo: Mapped[date | None] = mapped_column(Date, nullable=True)
-    unidade_id: Mapped[int | None] = mapped_column(
-        ForeignKey("unidades.id"), nullable=True
-    )
+    valor_acumulado: Mapped[float] = mapped_column(default=0.0)
     iniciativa_id: Mapped[int] = mapped_column(ForeignKey("iniciativas.id"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
@@ -104,10 +121,35 @@ class Indicador(Base):
     )
 
     iniciativa: Mapped["Iniciativa"] = relationship(back_populates="indicadores")
-    unidade: Mapped["Unidade | None"] = relationship()
+    unidades: Mapped[list["Unidade"]] = relationship(
+        secondary=indicador_unidades, back_populates="indicadores"
+    )
     comprovacoes: Mapped[list["Comprovacao"]] = relationship(
         back_populates="indicador", cascade="all, delete-orphan"
     )
+    etapas: Mapped[list["IndicadorEtapa"]] = relationship(
+        back_populates="indicador", cascade="all, delete-orphan"
+    )
+
+    @property
+    def progresso(self) -> float:
+        total = len(self.etapas)
+        if total == 0:
+            return 0.0
+        return round((self.valor_acumulado / total) * 100, 1)
+
+
+class IndicadorEtapa(Base):
+    __tablename__ = "indicador_etapas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    indicador_id: Mapped[int] = mapped_column(ForeignKey("indicadores.id", ondelete="CASCADE"))
+    nome: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_agora
+    )
+
+    indicador: Mapped["Indicador"] = relationship(back_populates="etapas")
 
 
 class Comprovacao(Base):
@@ -115,6 +157,9 @@ class Comprovacao(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     indicador_id: Mapped[int] = mapped_column(ForeignKey("indicadores.id"))
+    etapa_id: Mapped[int | None] = mapped_column(
+        ForeignKey("indicador_etapas.id", ondelete="SET NULL"), nullable=True
+    )
     ano: Mapped[int] = mapped_column(Integer)
     mes: Mapped[int] = mapped_column(Integer)
     arquivo_nome: Mapped[str] = mapped_column(String(255))
@@ -135,6 +180,7 @@ class Comprovacao(Base):
     )
 
     indicador: Mapped["Indicador"] = relationship(back_populates="comprovacoes")
+    etapa: Mapped["IndicadorEtapa | None"] = relationship()
 
 
 class Usuario(Base):
@@ -147,9 +193,14 @@ class Usuario(Base):
         SqlEnum(PapelUsuario, values_callable=lambda e: [m.value for m in e]),
         default=PapelUsuario.DEFAULT,
     )
+    unidade_id: Mapped[int | None] = mapped_column(
+        ForeignKey("unidades.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora, onupdate=_agora
     )
+
+    unidade: Mapped["Unidade | None"] = relationship()

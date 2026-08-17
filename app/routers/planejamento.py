@@ -13,7 +13,10 @@ def _opcoes():
         selectinload(models.Iniciativa.objetivo),
         selectinload(models.Iniciativa.indicadores),
         selectinload(models.Iniciativa.indicadores).selectinload(
-            models.Indicador.unidade
+            models.Indicador.unidades
+        ),
+        selectinload(models.Iniciativa.indicadores).selectinload(
+            models.Indicador.etapas
         ),
     )
 
@@ -60,13 +63,28 @@ def criar_planejamento(
             detail="Objetivo estratégico não encontrado",
         )
 
+    indicadores = []
+    for ind_dados in dados.indicadores:
+        dump = ind_dados.model_dump()
+        unidade_ids = dump.pop("unidade_ids", [])
+        etapas_nomes = dump.pop("etapas", [])
+        indicador = models.Indicador(**dump)
+        if unidade_ids:
+            indicador.unidades = list(
+                db.scalars(
+                    select(models.Unidade).where(
+                        models.Unidade.id.in_(unidade_ids)
+                    )
+                ).all()
+            )
+        for nome_etapa in etapas_nomes:
+            indicador.etapas.append(models.IndicadorEtapa(nome=nome_etapa))
+        indicadores.append(indicador)
+
     iniciativa = models.Iniciativa(
         nome=dados.nome,
         objetivo_id=dados.objetivo_id,
-        indicadores=[
-            models.Indicador(**indicador.model_dump())
-            for indicador in dados.indicadores
-        ],
+        indicadores=indicadores,
     )
     db.add(iniciativa)
     db.commit()
@@ -108,9 +126,23 @@ def atualizar_planejamento(
     if "objetivo_id" in campos:
         iniciativa.objetivo_id = campos["objetivo_id"]
     if "indicadores" in campos:
-        iniciativa.indicadores = [
-            models.Indicador(**indicador) for indicador in campos["indicadores"]
-        ]
+        novos_indicadores = []
+        for ind_dados in campos["indicadores"]:
+            unidade_ids = ind_dados.pop("unidade_ids", [])
+            etapas_nomes = ind_dados.pop("etapas", [])
+            indicador = models.Indicador(**ind_dados)
+            if unidade_ids:
+                indicador.unidades = list(
+                    db.scalars(
+                        select(models.Unidade).where(
+                            models.Unidade.id.in_(unidade_ids)
+                        )
+                    ).all()
+                )
+            for nome_etapa in etapas_nomes:
+                indicador.etapas.append(models.IndicadorEtapa(nome=nome_etapa))
+            novos_indicadores.append(indicador)
+        iniciativa.indicadores = novos_indicadores
 
     db.commit()
     return db.scalar(

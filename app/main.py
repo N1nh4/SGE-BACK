@@ -32,11 +32,18 @@ def _migrar_colunas() -> None:
         },
         "indicadores": {
             "unidade_id": "INTEGER",
+            "valor_acumulado": "REAL NOT NULL DEFAULT 0",
+            "rotulo_x": "VARCHAR(255) NOT NULL DEFAULT ''",
+            "rotulo_y": "VARCHAR(255) NOT NULL DEFAULT ''",
         },
         "comprovacoes": {
             "status": "VARCHAR(20) NOT NULL DEFAULT 'analise'",
             "justificativa": "TEXT",
             "prazo_reenvio": "DATE",
+            "etapa_id": "INTEGER",
+        },
+        "usuarios": {
+            "unidade_id": "INTEGER",
         },
     }
     colunas_de_data = {"created_at", "updated_at"}
@@ -73,6 +80,62 @@ def _migrar_colunas() -> None:
                         "AND responsavel_id IN (SELECT id FROM unidades)"
                     )
                 )
+
+        # Migração: unidade_id (FK única) → tabela associativa indicador_unidades.
+        if "indicadores" in insp.get_table_names():
+            colunas_ind = {
+                col["name"] for col in insp.get_columns("indicadores")
+            }
+            tem_tabela_assoc = "indicador_unidades" in insp.get_table_names()
+
+            if not tem_tabela_assoc:
+                conn.execute(
+                    text(
+                        "CREATE TABLE IF NOT EXISTS indicador_unidades ("
+                        "  indicador_id INTEGER NOT NULL,"
+                        "  unidade_id INTEGER NOT NULL,"
+                        "  PRIMARY KEY (indicador_id, unidade_id),"
+                        "  FOREIGN KEY (indicador_id) REFERENCES indicadores(id)"
+                        "    ON DELETE CASCADE,"
+                        "  FOREIGN KEY (unidade_id) REFERENCES unidades(id)"
+                        "    ON DELETE CASCADE"
+                        ")"
+                    )
+                )
+
+            if "unidade_id" in colunas_ind:
+                conn.execute(
+                    text(
+                        "INSERT OR IGNORE INTO indicador_unidades "
+                        "(indicador_id, unidade_id) "
+                        "SELECT id, unidade_id FROM indicadores "
+                        "WHERE unidade_id IS NOT NULL "
+                        "AND unidade_id IN (SELECT id FROM unidades)"
+                    )
+                )
+
+        # Migração: criar tabela indicador_etapas.
+        if "indicador_etapas" not in insp.get_table_names():
+            conn.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS indicador_etapas ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  indicador_id INTEGER NOT NULL,"
+                    "  nome VARCHAR(255) NOT NULL,"
+                    "  created_at DATETIME,"
+                    "  FOREIGN KEY (indicador_id) REFERENCES indicadores(id)"
+                    "    ON DELETE CASCADE"
+                    ")"
+                )
+            )
+
+        # Migração: dropar coluna formula (substituída por rotulo_x/rotulo_y).
+        if "indicadores" in insp.get_table_names():
+            colunas_ind = {
+                col["name"] for col in insp.get_columns("indicadores")
+            }
+            if "formula" in colunas_ind:
+                conn.execute(text("ALTER TABLE indicadores DROP COLUMN formula"))
 
 
 @asynccontextmanager

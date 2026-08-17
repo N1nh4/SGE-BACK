@@ -15,6 +15,34 @@ def listar_unidades(db: Session = Depends(get_db)):
     ).all()
 
 
+@router.get("/{unidade_id}", response_model=schemas.UnidadeRead)
+def obter_unidade(unidade_id: int, db: Session = Depends(get_db)):
+    unidade = db.get(models.Unidade, unidade_id)
+    if unidade is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Unidade não encontrada",
+        )
+    return unidade
+
+
+@router.get(
+    "/{unidade_id}/colaboradores",
+    response_model=list[schemas.UsuarioRead],
+)
+def listar_colaboradores(unidade_id: int, db: Session = Depends(get_db)):
+    if db.get(models.Unidade, unidade_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Unidade não encontrada",
+        )
+    return db.scalars(
+        select(models.Usuario)
+        .where(models.Usuario.unidade_id == unidade_id)
+        .order_by(models.Usuario.id)
+    ).all()
+
+
 @router.post(
     "",
     response_model=schemas.UnidadeRead,

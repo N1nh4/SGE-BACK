@@ -37,10 +37,12 @@ class ObjetivoRead(BaseModel):
 class IndicadorCreate(BaseModel):
     nome: str = Field(min_length=1, max_length=255)
     meta: str = Field(min_length=1, max_length=255)
-    formula: str = Field(min_length=1)
+    rotulo_x: str = Field(min_length=1, max_length=255)
+    rotulo_y: str = Field(min_length=1, max_length=255)
     orientacao: str = Field(min_length=1)
     prazo: date | None = None
-    unidade_id: int | None = None
+    unidade_ids: list[int] = Field(default_factory=list)
+    etapas: list[str] = Field(default_factory=list)
 
 
 class IniciativaCreate(BaseModel):
@@ -73,17 +75,26 @@ class UnidadeResumo(BaseModel):
     nome: str
 
 
+class EtapaRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+
+
 class IndicadorRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     nome: str
     meta: str
-    formula: str
+    rotulo_x: str
+    rotulo_y: str
     orientacao: str
     prazo: date | None
-    unidade_id: int | None
-    unidade: UnidadeResumo | None
+    unidades: list[UnidadeResumo]
+    etapas: list[EtapaRead]
+    progresso: float
     created_at: datetime
     updated_at: datetime
 
@@ -118,6 +129,7 @@ class IniciativaRead(BaseModel):
 
 
 class ComprovacaoCreate(BaseModel):
+    etapa_id: int | None = None
     ano: int = Field(ge=2000, le=2100)
     mes: int = Field(ge=1, le=12)
 
@@ -133,6 +145,7 @@ class ComprovacaoRead(BaseModel):
 
     id: int
     indicador_id: int
+    etapa_id: int | None
     ano: int
     mes: int
     arquivo_nome: str
@@ -147,12 +160,14 @@ class UsuarioCreate(BaseModel):
     nome: str = Field(min_length=1, max_length=255)
     email: str = Field(min_length=3, max_length=255)
     papel: PapelUsuario = PapelUsuario.DEFAULT
+    unidade_id: int | None = None
 
 
 class UsuarioUpdate(BaseModel):
     nome: str | None = Field(default=None, max_length=255)
     email: str | None = Field(default=None, max_length=255)
     papel: PapelUsuario | None = None
+    unidade_id: int | None = None
 
 
 class UsuarioRead(BaseModel):
@@ -162,5 +177,6 @@ class UsuarioRead(BaseModel):
     nome: str
     email: str
     papel: PapelUsuario
+    unidade_id: int | None
     created_at: datetime
     updated_at: datetime
