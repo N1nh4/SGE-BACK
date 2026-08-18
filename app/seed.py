@@ -1,6 +1,7 @@
 from sqlalchemy import func, select
 
 from . import models
+from .auth import hash_senha
 from .database import SessionLocal
 from .models import PapelUsuario
 
@@ -101,16 +102,19 @@ DADOS_USUARIOS = [
     {
         "nome": "Usuário Master",
         "email": "master@sge.com",
+        "senha": "master123",
         "papel": PapelUsuario.MASTER,
     },
     {
         "nome": "Usuário Administrador",
         "email": "adm@sge.com",
+        "senha": "adm123",
         "papel": PapelUsuario.ADM,
     },
     {
         "nome": "Usuário Padrão",
         "email": "default@sge.com",
+        "senha": "default123",
         "papel": PapelUsuario.DEFAULT,
     },
 ]
@@ -121,5 +125,8 @@ def seed_usuarios() -> None:
         total = db.scalar(select(func.count()).select_from(models.Usuario))
         if total:
             return
-        db.add_all(models.Usuario(**dados) for dados in DADOS_USUARIOS)
+        for dados in DADOS_USUARIOS:
+            senha = dados.pop("senha")
+            usuario = models.Usuario(senha_hash=hash_senha(senha), **dados)
+            db.add(usuario)
         db.commit()

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .. import models, schemas
 from ..database import get_db
+from ..deps import require_role
 
 router = APIRouter(prefix="/api/planejamento", tags=["planejamento"])
 
@@ -22,7 +23,10 @@ def _opcoes():
 
 
 @router.get("", response_model=list[schemas.IniciativaRead])
-def listar_planejamento(db: Session = Depends(get_db)):
+def listar_planejamento(
+    db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
+):
     return db.scalars(
         select(models.Iniciativa)
         .options(*_opcoes())
@@ -34,6 +38,7 @@ def listar_planejamento(db: Session = Depends(get_db)):
 def obter_planejamento(
     iniciativa_id: int,
     db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
 ):
     iniciativa = db.scalar(
         select(models.Iniciativa)
@@ -56,6 +61,7 @@ def obter_planejamento(
 def criar_planejamento(
     dados: schemas.IniciativaCreate,
     db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
 ):
     if db.get(models.Objetivo, dados.objetivo_id) is None:
         raise HTTPException(
@@ -101,6 +107,7 @@ def atualizar_planejamento(
     iniciativa_id: int,
     dados: schemas.IniciativaUpdate,
     db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
 ):
     iniciativa = db.scalar(
         select(models.Iniciativa)
@@ -153,7 +160,11 @@ def atualizar_planejamento(
 
 
 @router.delete("/{iniciativa_id}", status_code=status.HTTP_204_NO_CONTENT)
-def excluir_planejamento(iniciativa_id: int, db: Session = Depends(get_db)):
+def excluir_planejamento(
+    iniciativa_id: int,
+    db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
+):
     iniciativa = db.get(models.Iniciativa, iniciativa_id)
     if iniciativa is None:
         raise HTTPException(

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
+from ..deps import require_role
 
 router = APIRouter(prefix="/api/objetivos", tags=["objetivos"])
 
@@ -19,7 +20,10 @@ def _obter_objetivo(objetivo_id: int, db: Session) -> models.Objetivo:
 
 
 @router.get("", response_model=list[schemas.ObjetivoRead])
-def listar_objetivos(db: Session = Depends(get_db)):
+def listar_objetivos(
+    db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm"),
+):
     return db.scalars(
         select(models.Objetivo).order_by(models.Objetivo.id)
     ).all()
@@ -30,7 +34,11 @@ def listar_objetivos(db: Session = Depends(get_db)):
     response_model=schemas.ObjetivoRead,
     status_code=status.HTTP_201_CREATED,
 )
-def criar_objetivo(dados: schemas.ObjetivoCreate, db: Session = Depends(get_db)):
+def criar_objetivo(
+    dados: schemas.ObjetivoCreate,
+    db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm"),
+):
     objetivo = models.Objetivo(**dados.model_dump())
     db.add(objetivo)
     db.commit()
@@ -39,7 +47,11 @@ def criar_objetivo(dados: schemas.ObjetivoCreate, db: Session = Depends(get_db))
 
 
 @router.get("/{objetivo_id}", response_model=schemas.ObjetivoRead)
-def obter_objetivo(objetivo_id: int, db: Session = Depends(get_db)):
+def obter_objetivo(
+    objetivo_id: int,
+    db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm"),
+):
     return _obter_objetivo(objetivo_id, db)
 
 
@@ -48,6 +60,7 @@ def atualizar_objetivo(
     objetivo_id: int,
     dados: schemas.ObjetivoUpdate,
     db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm"),
 ):
     objetivo = _obter_objetivo(objetivo_id, db)
     for campo, valor in dados.model_dump(exclude_unset=True).items():
@@ -58,7 +71,11 @@ def atualizar_objetivo(
 
 
 @router.delete("/{objetivo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def excluir_objetivo(objetivo_id: int, db: Session = Depends(get_db)):
+def excluir_objetivo(
+    objetivo_id: int,
+    db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm"),
+):
     objetivo = _obter_objetivo(objetivo_id, db)
     db.delete(objetivo)
     db.commit()

@@ -6,7 +6,7 @@ from sqlalchemy import inspect, text
 
 from . import models  # noqa: F401
 from .database import Base, engine
-from .routers import comprovacoes, objetivos, planejamento, unidades, usuarios
+from .routers import auth, comprovacoes, objetivos, planejamento, unidades, usuarios
 from .seed import seed_objetivos, seed_usuarios
 
 
@@ -44,6 +44,7 @@ def _migrar_colunas() -> None:
         },
         "usuarios": {
             "unidade_id": "INTEGER",
+            "senha_hash": "VARCHAR(255) NOT NULL DEFAULT ''",
         },
     }
     colunas_de_data = {"created_at", "updated_at"}
@@ -160,6 +161,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(objetivos.router)
 app.include_router(planejamento.router)
 app.include_router(comprovacoes.router)

@@ -159,6 +159,7 @@ class ComprovacaoRead(BaseModel):
 class UsuarioCreate(BaseModel):
     nome: str = Field(min_length=1, max_length=255)
     email: str = Field(min_length=3, max_length=255)
+    senha: str = Field(min_length=6, max_length=255)
     papel: PapelUsuario = PapelUsuario.DEFAULT
     unidade_id: int | None = None
 
@@ -166,6 +167,7 @@ class UsuarioCreate(BaseModel):
 class UsuarioUpdate(BaseModel):
     nome: str | None = Field(default=None, max_length=255)
     email: str | None = Field(default=None, max_length=255)
+    senha: str | None = Field(default=None, min_length=6, max_length=255)
     papel: PapelUsuario | None = None
     unidade_id: int | None = None
 
@@ -180,3 +182,13 @@ class UsuarioRead(BaseModel):
     unidade_id: int | None
     created_at: datetime
     updated_at: datetime
+
+
+class LoginRequest(BaseModel):
+    email: str
+    senha: str
+
+
+class LoginResponse(BaseModel):
+    token: str
+    usuario: UsuarioRead

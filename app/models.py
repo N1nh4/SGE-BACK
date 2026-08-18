@@ -189,6 +189,7 @@ class Usuario(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    senha_hash: Mapped[str] = mapped_column(String(255))
     papel: Mapped[PapelUsuario] = mapped_column(
         SqlEnum(PapelUsuario, values_callable=lambda e: [m.value for m in e]),
         default=PapelUsuario.DEFAULT,
