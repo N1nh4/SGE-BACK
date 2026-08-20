@@ -7,7 +7,6 @@ from sqlalchemy import inspect, text
 from . import models  # noqa: F401
 from .database import Base, engine
 from .routers import auth, comprovacoes, objetivos, planejamento, unidades, usuarios
-from .seed import seed_objetivos, seed_usuarios
 
 
 def _migrar_colunas() -> None:
@@ -27,8 +26,8 @@ def _migrar_colunas() -> None:
             "updated_at": (
                 "TIMESTAMP WITH TIME ZONE" if e_postgres else "DATETIME"
             ),
-            "ppa": "VARCHAR(255) NOT NULL DEFAULT ''",
-            "loa": "VARCHAR(255) NOT NULL DEFAULT ''",
+            "ppa": "VARCHAR(1000) NOT NULL DEFAULT ''",
+            "loa": "VARCHAR(1000) NOT NULL DEFAULT ''",
         },
         "indicadores": {
             "unidade_id": "INTEGER",
@@ -45,6 +44,7 @@ def _migrar_colunas() -> None:
         "usuarios": {
             "unidade_id": "INTEGER",
             "senha_hash": "VARCHAR(255) NOT NULL DEFAULT ''",
+            "status": "INTEGER NOT NULL DEFAULT 1",
         },
     }
     colunas_de_data = {"created_at", "updated_at"}
@@ -138,13 +138,21 @@ def _migrar_colunas() -> None:
             if "formula" in colunas_ind:
                 conn.execute(text("ALTER TABLE indicadores DROP COLUMN formula"))
 
+        # Migração: expandir ppa/loa de VARCHAR(255) para VARCHAR(1000).
+        if e_postgres and "objetivos" in insp.get_table_names():
+            for col_name in ("ppa", "loa"):
+                conn.execute(
+                    text(
+                        f"ALTER TABLE objetivos ALTER COLUMN {col_name} "
+                        f"TYPE VARCHAR(1000)"
+                    )
+                )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     _migrar_colunas()
-    seed_objetivos()
-    seed_usuarios()
     yield
 
 

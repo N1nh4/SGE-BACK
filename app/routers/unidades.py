@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/unidades", tags=["unidades"])
 @router.get("", response_model=list[schemas.UnidadeRead])
 def listar_unidades(
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master"),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
 ):
     return db.scalars(
         select(models.Unidade).order_by(models.Unidade.id)
@@ -23,7 +23,7 @@ def listar_unidades(
 def obter_unidade(
     unidade_id: int,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master"),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
 ):
     unidade = db.get(models.Unidade, unidade_id)
     if unidade is None:

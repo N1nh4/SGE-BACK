@@ -32,8 +32,8 @@ class Objetivo(Base):
     codigo: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     nome: Mapped[str] = mapped_column(String(255))
     descricao: Mapped[str] = mapped_column(Text)
-    ppa: Mapped[str] = mapped_column(String(255))
-    loa: Mapped[str] = mapped_column(String(255))
+    ppa: Mapped[str] = mapped_column(String(1000))
+    loa: Mapped[str] = mapped_column(String(1000))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
     )
@@ -197,6 +197,7 @@ class Usuario(Base):
     unidade_id: Mapped[int | None] = mapped_column(
         ForeignKey("unidades.id"), nullable=True
     )
+    status: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
     )

@@ -9,16 +9,16 @@ class ObjetivoCreate(BaseModel):
     codigo: str = Field(min_length=1, max_length=20)
     nome: str = Field(min_length=1, max_length=255)
     descricao: str = Field(min_length=1)
-    ppa: str = Field(min_length=1, max_length=255)
-    loa: str = Field(min_length=1, max_length=255)
+    ppa: str = Field(min_length=1, max_length=1000)
+    loa: str = Field(min_length=1, max_length=1000)
 
 
 class ObjetivoUpdate(BaseModel):
     codigo: str | None = Field(default=None, max_length=20)
     nome: str | None = Field(default=None, max_length=255)
     descricao: str | None = None
-    ppa: str | None = Field(default=None, max_length=255)
-    loa: str | None = Field(default=None, max_length=255)
+    ppa: str | None = Field(default=None, max_length=1000)
+    loa: str | None = Field(default=None, max_length=1000)
 
 
 class ObjetivoRead(BaseModel):
@@ -162,6 +162,7 @@ class UsuarioCreate(BaseModel):
     senha: str = Field(min_length=6, max_length=255)
     papel: PapelUsuario = PapelUsuario.DEFAULT
     unidade_id: int | None = None
+    status: int = 1
 
 
 class UsuarioUpdate(BaseModel):
@@ -170,6 +171,7 @@ class UsuarioUpdate(BaseModel):
     senha: str | None = Field(default=None, min_length=6, max_length=255)
     papel: PapelUsuario | None = None
     unidade_id: int | None = None
+    status: int | None = None
 
 
 class UsuarioRead(BaseModel):
@@ -180,6 +182,7 @@ class UsuarioRead(BaseModel):
     email: str
     papel: PapelUsuario
     unidade_id: int | None
+    status: int
     created_at: datetime
     updated_at: datetime
 

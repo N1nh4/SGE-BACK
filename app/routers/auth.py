@@ -19,5 +19,10 @@ def login(dados: schemas.LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="E-mail ou senha inválidos",
         )
+    if usuario.status != 1:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Conta desativada. Contate o administrador.",
+        )
     token = criar_token(usuario.id)
     return schemas.LoginResponse(token=token, usuario=usuario)
