@@ -16,7 +16,7 @@ from starlette.responses import FileResponse
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import require_role
+from ..deps import require_permission, require_role
 
 router = APIRouter(tags=["comprovacoes"])
 
@@ -67,7 +67,7 @@ async def criar_comprovacao(
     mes: int = Form(ge=1, le=12),
     arquivo: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm", "default"),
+    _usuario: models.Usuario = require_permission("/comprovacoes", "criar"),
 ):
     if db.get(models.Indicador, indicador_id) is None:
         raise HTTPException(
@@ -172,7 +172,7 @@ def visualizar_comprovacao(
 def excluir_comprovacao(
     comprovacao_id: int,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm", "default"),
+    _usuario: models.Usuario = require_permission("/comprovacoes", "excluir"),
 ):
     comprovacao = db.get(models.Comprovacao, comprovacao_id)
     if comprovacao is None:
@@ -199,7 +199,7 @@ def atualizar_status_comprovacao(
     comprovacao_id: int,
     dados: schemas.ComprovacaoUpdate,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm", "default"),
+    _usuario: models.Usuario = require_permission("/comprovacoes", "aprovar"),
 ):
     comprovacao = db.get(models.Comprovacao, comprovacao_id)
     if comprovacao is None:

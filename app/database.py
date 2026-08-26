@@ -6,7 +6,7 @@ from .config import settings
 connect_args = (
     {"check_same_thread": False}
     if settings.database_url.startswith("sqlite")
-    else {}
+    else {"client_encoding": "utf8"}
 )
 
 engine = create_engine(settings.database_url, connect_args=connect_args)

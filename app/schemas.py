@@ -2,13 +2,12 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import PapelUsuario, StatusComprovacao
+from .models import StatusComprovacao
 
 
 class ObjetivoCreate(BaseModel):
     codigo: str = Field(min_length=1, max_length=20)
     nome: str = Field(min_length=1, max_length=255)
-    descricao: str = Field(min_length=1)
     ppa: str = Field(min_length=1, max_length=1000)
     loa: str = Field(min_length=1, max_length=1000)
 
@@ -16,7 +15,6 @@ class ObjetivoCreate(BaseModel):
 class ObjetivoUpdate(BaseModel):
     codigo: str | None = Field(default=None, max_length=20)
     nome: str | None = Field(default=None, max_length=255)
-    descricao: str | None = None
     ppa: str | None = Field(default=None, max_length=1000)
     loa: str | None = Field(default=None, max_length=1000)
 
@@ -27,7 +25,6 @@ class ObjetivoRead(BaseModel):
     id: int
     codigo: str
     nome: str
-    descricao: str
     ppa: str
     loa: str
     created_at: datetime
@@ -63,7 +60,6 @@ class ObjetivoResumo(BaseModel):
     id: int
     codigo: str
     nome: str
-    descricao: str
     ppa: str
     loa: str
 
@@ -156,35 +152,67 @@ class ComprovacaoRead(BaseModel):
     updated_at: datetime
 
 
-class UsuarioCreate(BaseModel):
-    nome: str = Field(min_length=1, max_length=255)
-    email: str = Field(min_length=3, max_length=255)
-    senha: str = Field(min_length=6, max_length=255)
-    papel: PapelUsuario = PapelUsuario.DEFAULT
-    unidade_id: int | None = None
-    status: int = 1
-
-
-class UsuarioUpdate(BaseModel):
-    nome: str | None = Field(default=None, max_length=255)
-    email: str | None = Field(default=None, max_length=255)
-    senha: str | None = Field(default=None, min_length=6, max_length=255)
-    papel: PapelUsuario | None = None
-    unidade_id: int | None = None
-    status: int | None = None
-
-
 class UsuarioRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     nome: str
     email: str
-    papel: PapelUsuario
-    unidade_id: int | None
+    papel: str
     status: int
     created_at: datetime
     updated_at: datetime
+
+
+class UnidadeLogin(BaseModel):
+    id: int
+    nome: str
+    papel: str
+
+
+class PaginaRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    chave: str
+    nome: str
+
+
+class PaginaComAcoes(BaseModel):
+    chave: str
+    acoes: list[str]
+
+
+class PerfilPaginaItem(BaseModel):
+    pagina_id: int
+    acoes: list[str]
+
+
+class PerfilRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    chave: str
+    nome: str
+    paginas: list[PaginaRead]
+
+
+class PerfilCreate(BaseModel):
+    nome: str = Field(min_length=1, max_length=100)
+
+
+class PerfilUpdate(BaseModel):
+    nome: str | None = Field(default=None, max_length=100)
+
+
+class PerfilPaginaUpdate(BaseModel):
+    paginas: list["PerfilPaginaItem"]
+
+
+class PerfilPaginaAcoesUpdate(BaseModel):
+    perfil_id: int
+    pagina_id: int
+    acoes: list[str]
 
 
 class LoginRequest(BaseModel):
@@ -195,3 +223,35 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     token: str
     usuario: UsuarioRead
+    unidades: list[UnidadeLogin]
+    paginas: list[PaginaComAcoes]
+
+
+class SelecionarUnidadeRequest(BaseModel):
+    unidade_id: int
+
+
+class SelecionarUnidadeResponse(BaseModel):
+    token: str
+    usuario: UsuarioRead
+    unidade_id: int
+    papel: str
+    paginas: list[PaginaComAcoes]
+
+
+class UsuarioCreate(BaseModel):
+    nome: str = Field(min_length=1, max_length=255)
+    email: str = Field(min_length=3, max_length=255)
+    senha: str = Field(min_length=6, max_length=255)
+    papel: str = "default"
+    unidade_id: int | None = None
+    status: int = 1
+
+
+class UsuarioUpdate(BaseModel):
+    nome: str | None = Field(default=None, max_length=255)
+    email: str | None = Field(default=None, max_length=255)
+    senha: str | None = Field(default=None, min_length=6, max_length=255)
+    papel: str | None = None
+    unidade_id: int | None = None
+    status: int | None = None

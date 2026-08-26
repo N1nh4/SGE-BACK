@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..auth import hash_senha
 from ..database import get_db
-from ..deps import require_role
+from ..deps import require_permission, require_role
 
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
 
@@ -49,13 +49,26 @@ def listar_usuarios(
 def criar_usuario(
     dados: schemas.UsuarioCreate,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm"),
+    _usuario: models.Usuario = require_permission("/unidades", "criar"),
 ):
     _verificar_email(dados.email, db)
     dados_dict = dados.model_dump()
     senha = dados_dict.pop("senha")
-    usuario = models.Usuario(senha_hash=hash_senha(senha), **dados_dict)
+    unidade_id = dados_dict.pop("unidade_id", None)
+    papel = dados_dict.pop("papel", "default")
+    usuario = models.Usuario(papel=papel, senha_hash=hash_senha(senha), **dados_dict)
     db.add(usuario)
+    db.flush()
+
+    if unidade_id is not None:
+        db.execute(
+            models.usuario_unidades.insert().values(
+                usuario_id=usuario.id,
+                unidade_id=unidade_id,
+                papel=papel,
+            )
+        )
+
     db.commit()
     db.refresh(usuario)
     return usuario
@@ -75,17 +88,35 @@ def atualizar_usuario(
     usuario_id: int,
     dados: schemas.UsuarioUpdate,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm"),
+    _usuario: models.Usuario = require_permission("/unidades", "editar"),
 ):
     usuario = _obter_usuario(usuario_id, db)
     campos = dados.model_dump(exclude_unset=True)
     if "email" in campos:
         _verificar_email(campos["email"], db, ignorar_id=usuario_id)
     senha = campos.pop("senha", None)
+    unidade_id = campos.pop("unidade_id", None)
     if senha is not None:
         usuario.senha_hash = hash_senha(senha)
     for campo, valor in campos.items():
         setattr(usuario, campo, valor)
+
+    if unidade_id is not None:
+        exists = db.execute(
+            select(models.usuario_unidades).where(
+                models.usuario_unidades.c.usuario_id == usuario_id,
+                models.usuario_unidades.c.unidade_id == unidade_id,
+            )
+        ).scalar_one_or_none()
+        if exists is None:
+            db.execute(
+                models.usuario_unidades.insert().values(
+                    usuario_id=usuario_id,
+                    unidade_id=unidade_id,
+                    papel=usuario.papel,
+                )
+            )
+
     db.commit()
     db.refresh(usuario)
     return usuario
@@ -95,7 +126,7 @@ def atualizar_usuario(
 def excluir_usuario(
     usuario_id: int,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm"),
+    _usuario: models.Usuario = require_permission("/unidades", "excluir"),
 ):
     usuario = _obter_usuario(usuario_id, db)
     db.delete(usuario)

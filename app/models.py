@@ -1,18 +1,11 @@
 from datetime import date, datetime, timezone
 from enum import Enum
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, JSON, String, Table, Text
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
-
-
-class PapelUsuario(str, Enum):
-    MASTER = "master"
-    ADM = "adm"
-    PONTO_FOCAL = "ponto_focal"
-    DEFAULT = "default"
 
 
 class StatusComprovacao(str, Enum):
@@ -31,7 +24,6 @@ class Objetivo(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     codigo: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     nome: Mapped[str] = mapped_column(String(255))
-    descricao: Mapped[str] = mapped_column(Text)
     ppa: Mapped[str] = mapped_column(String(1000))
     loa: Mapped[str] = mapped_column(String(1000))
     created_at: Mapped[datetime] = mapped_column(
@@ -190,13 +182,7 @@ class Usuario(Base):
     nome: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     senha_hash: Mapped[str] = mapped_column(String(255))
-    papel: Mapped[PapelUsuario] = mapped_column(
-        SqlEnum(PapelUsuario, values_callable=lambda e: [m.value for m in e]),
-        default=PapelUsuario.DEFAULT,
-    )
-    unidade_id: Mapped[int | None] = mapped_column(
-        ForeignKey("unidades.id"), nullable=True
-    )
+    papel: Mapped[str] = mapped_column(String(20), default="default")
     status: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
@@ -205,4 +191,49 @@ class Usuario(Base):
         DateTime(timezone=True), default=_agora, onupdate=_agora
     )
 
-    unidade: Mapped["Unidade | None"] = relationship()
+    unidades: Mapped[list["Unidade"]] = relationship(
+        secondary="usuario_unidades", viewonly=True
+    )
+
+
+usuario_unidades = Table(
+    "usuario_unidades",
+    Base.metadata,
+    Column("usuario_id", ForeignKey("usuarios.id", ondelete="CASCADE"), primary_key=True),
+    Column("unidade_id", ForeignKey("unidades.id", ondelete="CASCADE"), primary_key=True),
+    Column("papel", String(20), nullable=False, default="default"),
+)
+
+
+class Pagina(Base):
+    __tablename__ = "paginas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    chave: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    nome: Mapped[str] = mapped_column(String(255))
+
+
+class Perfil(Base):
+    __tablename__ = "perfis"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    chave: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    nome: Mapped[str] = mapped_column(String(100))
+
+    paginas: Mapped[list["Pagina"]] = relationship(
+        secondary="perfil_paginas", viewonly=True
+    )
+
+
+class PerfilPagina(Base):
+    __tablename__ = "perfil_paginas"
+
+    perfil_id: Mapped[int] = mapped_column(
+        ForeignKey("perfis.id", ondelete="CASCADE"), primary_key=True
+    )
+    pagina_id: Mapped[int] = mapped_column(
+        ForeignKey("paginas.id", ondelete="CASCADE"), primary_key=True
+    )
+    acoes: Mapped[list] = mapped_column(JSON, default=list)
+
+    pagina: Mapped["Pagina"] = relationship()

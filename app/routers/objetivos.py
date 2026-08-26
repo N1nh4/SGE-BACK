@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import require_role
+from ..deps import require_permission, require_role
 
 router = APIRouter(prefix="/api/objetivos", tags=["objetivos"])
 
@@ -22,7 +22,7 @@ def _obter_objetivo(objetivo_id: int, db: Session) -> models.Objetivo:
 @router.get("", response_model=list[schemas.ObjetivoRead])
 def listar_objetivos(
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm"),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
 ):
     return db.scalars(
         select(models.Objetivo).order_by(models.Objetivo.id)
@@ -37,7 +37,7 @@ def listar_objetivos(
 def criar_objetivo(
     dados: schemas.ObjetivoCreate,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm"),
+    _usuario: models.Usuario = require_permission("/objetivos", "criar"),
 ):
     objetivo = models.Objetivo(**dados.model_dump())
     db.add(objetivo)
@@ -50,7 +50,7 @@ def criar_objetivo(
 def obter_objetivo(
     objetivo_id: int,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm"),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
 ):
     return _obter_objetivo(objetivo_id, db)
 
@@ -60,7 +60,7 @@ def atualizar_objetivo(
     objetivo_id: int,
     dados: schemas.ObjetivoUpdate,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm"),
+    _usuario: models.Usuario = require_permission("/objetivos", "editar"),
 ):
     objetivo = _obter_objetivo(objetivo_id, db)
     for campo, valor in dados.model_dump(exclude_unset=True).items():
@@ -74,7 +74,7 @@ def atualizar_objetivo(
 def excluir_objetivo(
     objetivo_id: int,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm"),
+    _usuario: models.Usuario = require_permission("/objetivos", "excluir"),
 ):
     objetivo = _obter_objetivo(objetivo_id, db)
     db.delete(objetivo)

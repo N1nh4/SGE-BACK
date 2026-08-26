@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import require_role
+from ..deps import require_permission, require_role
 
 router = APIRouter(prefix="/api/unidades", tags=["unidades"])
 
@@ -41,7 +41,7 @@ def obter_unidade(
 def listar_colaboradores(
     unidade_id: int,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master"),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
 ):
     if db.get(models.Unidade, unidade_id) is None:
         raise HTTPException(
@@ -50,7 +50,8 @@ def listar_colaboradores(
         )
     return db.scalars(
         select(models.Usuario)
-        .where(models.Usuario.unidade_id == unidade_id)
+        .join(models.usuario_unidades, models.usuario_unidades.c.usuario_id == models.Usuario.id)
+        .where(models.usuario_unidades.c.unidade_id == unidade_id)
         .order_by(models.Usuario.id)
     ).all()
 
@@ -63,7 +64,7 @@ def listar_colaboradores(
 def criar_unidade(
     dados: schemas.UnidadeCreate,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master"),
+    _usuario: models.Usuario = require_permission("/unidades", "criar"),
 ):
     unidade = models.Unidade(**dados.model_dump())
     db.add(unidade)
@@ -77,7 +78,7 @@ def atualizar_unidade(
     unidade_id: int,
     dados: schemas.UnidadeUpdate,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master"),
+    _usuario: models.Usuario = require_permission("/unidades", "editar"),
 ):
     unidade = db.get(models.Unidade, unidade_id)
     if unidade is None:
@@ -96,7 +97,7 @@ def atualizar_unidade(
 def excluir_unidade(
     unidade_id: int,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master"),
+    _usuario: models.Usuario = require_permission("/unidades", "excluir"),
 ):
     unidade = db.get(models.Unidade, unidade_id)
     if unidade is None:

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import require_role
+from ..deps import require_permission, require_role
 
 router = APIRouter(prefix="/api/planejamento", tags=["planejamento"])
 
@@ -61,7 +61,7 @@ def obter_planejamento(
 def criar_planejamento(
     dados: schemas.IniciativaCreate,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm", "default"),
+    _usuario: models.Usuario = require_permission("/planejamento", "criar"),
 ):
     if db.get(models.Objetivo, dados.objetivo_id) is None:
         raise HTTPException(
@@ -107,7 +107,7 @@ def atualizar_planejamento(
     iniciativa_id: int,
     dados: schemas.IniciativaUpdate,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm", "default"),
+    _usuario: models.Usuario = require_permission("/planejamento", "editar"),
 ):
     iniciativa = db.scalar(
         select(models.Iniciativa)
@@ -163,7 +163,7 @@ def atualizar_planejamento(
 def excluir_planejamento(
     iniciativa_id: int,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role("master", "adm", "default"),
+    _usuario: models.Usuario = require_permission("/planejamento", "excluir"),
 ):
     iniciativa = db.get(models.Iniciativa, iniciativa_id)
     if iniciativa is None:
