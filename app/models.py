@@ -194,6 +194,27 @@ class Usuario(Base):
     unidades: Mapped[list["Unidade"]] = relationship(
         secondary="usuario_unidades", viewonly=True
     )
+    notificacoes: Mapped[list["Notificacao"]] = relationship(
+        back_populates="usuario", cascade="all, delete-orphan"
+    )
+
+
+class Notificacao(Base):
+    __tablename__ = "notificacoes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), index=True
+    )
+    tipo: Mapped[str] = mapped_column(String(30))
+    titulo: Mapped[str] = mapped_column(String(255))
+    mensagem: Mapped[str] = mapped_column(Text)
+    lida: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_agora
+    )
+
+    usuario: Mapped["Usuario"] = relationship(back_populates="notificacoes")
 
 
 usuario_unidades = Table(

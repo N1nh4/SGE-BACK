@@ -16,7 +16,7 @@ from starlette.responses import FileResponse
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import require_permission, require_role
+from ..deps import get_escopo_unidade, require_permission, require_role
 
 router = APIRouter(tags=["comprovacoes"])
 
@@ -39,12 +39,28 @@ def listar_comprovacoes(
     indicador_id: int,
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_role("master", "adm", "default"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
-    if db.get(models.Indicador, indicador_id) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Indicador não encontrado",
+    if unidade_id is not None:
+        pertence = db.scalar(
+            select(1)
+            .select_from(models.indicador_unidades)
+            .where(
+                models.indicador_unidades.c.indicador_id == indicador_id,
+                models.indicador_unidades.c.unidade_id == unidade_id,
+            )
         )
+        if pertence is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Indicador não encontrado",
+            )
+    else:
+        if db.get(models.Indicador, indicador_id) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Indicador não encontrado",
+            )
     return db.scalars(
         select(models.Comprovacao)
         .where(models.Comprovacao.indicador_id == indicador_id)
@@ -68,8 +84,23 @@ async def criar_comprovacao(
     arquivo: UploadFile = File(...),
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_permission("/comprovacoes", "criar"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
-    if db.get(models.Indicador, indicador_id) is None:
+    if unidade_id is not None:
+        pertence = db.scalar(
+            select(1)
+            .select_from(models.indicador_unidades)
+            .where(
+                models.indicador_unidades.c.indicador_id == indicador_id,
+                models.indicador_unidades.c.unidade_id == unidade_id,
+            )
+        )
+        if pertence is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Indicador não pertence à sua unidade",
+            )
+    elif db.get(models.Indicador, indicador_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Indicador não encontrado",
@@ -144,6 +175,7 @@ def visualizar_comprovacao(
     comprovacao_id: int,
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_role("master", "adm", "default"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
     comprovacao = db.get(models.Comprovacao, comprovacao_id)
     if comprovacao is None:
@@ -151,6 +183,20 @@ def visualizar_comprovacao(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Comprovação não encontrada",
         )
+    if unidade_id is not None:
+        pertence = db.scalar(
+            select(1)
+            .select_from(models.indicador_unidades)
+            .where(
+                models.indicador_unidades.c.indicador_id == comprovacao.indicador_id,
+                models.indicador_unidades.c.unidade_id == unidade_id,
+            )
+        )
+        if pertence is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Comprovação não encontrada",
+            )
     caminho = _raiz() / comprovacao.arquivo_caminho
     if not caminho.is_file():
         raise HTTPException(
@@ -173,6 +219,7 @@ def excluir_comprovacao(
     comprovacao_id: int,
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_permission("/comprovacoes", "excluir"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
     comprovacao = db.get(models.Comprovacao, comprovacao_id)
     if comprovacao is None:
@@ -180,6 +227,20 @@ def excluir_comprovacao(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Comprovação não encontrada",
         )
+    if unidade_id is not None:
+        pertence = db.scalar(
+            select(1)
+            .select_from(models.indicador_unidades)
+            .where(
+                models.indicador_unidades.c.indicador_id == comprovacao.indicador_id,
+                models.indicador_unidades.c.unidade_id == unidade_id,
+            )
+        )
+        if pertence is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Comprovação não pertence à sua unidade",
+            )
     (_raiz() / comprovacao.arquivo_caminho).unlink(missing_ok=True)
 
     if comprovacao.status == models.StatusComprovacao.APROVADO:
@@ -199,7 +260,8 @@ def atualizar_status_comprovacao(
     comprovacao_id: int,
     dados: schemas.ComprovacaoUpdate,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_permission("/comprovacoes", "aprovar"),
+    _usuario: models.Usuario = require_permission("/validacao", "aprovar"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
     comprovacao = db.get(models.Comprovacao, comprovacao_id)
     if comprovacao is None:
@@ -207,6 +269,20 @@ def atualizar_status_comprovacao(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Comprovação não encontrada",
         )
+    if unidade_id is not None:
+        pertence = db.scalar(
+            select(1)
+            .select_from(models.indicador_unidades)
+            .where(
+                models.indicador_unidades.c.indicador_id == comprovacao.indicador_id,
+                models.indicador_unidades.c.unidade_id == unidade_id,
+            )
+        )
+        if pertence is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Comprovação não pertence à sua unidade",
+            )
     if (
         dados.status == models.StatusComprovacao.RECUSADO
         and not dados.justificativa

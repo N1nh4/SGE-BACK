@@ -131,6 +131,21 @@ def _usuario_tem_acao(
     return acao in acoes
 
 
+def get_escopo_unidade(
+    usuario: Usuario = Depends(get_usuario_atual),
+    x_unidade_id: int | None = Header(default=None, convert_underscores=False),
+) -> int | None:
+    """Retorna a unidade pela qual o usuário padrão deve ser filtrado.
+
+    Somente o papel "default" (usuário padrão) é restrito à unidade
+    selecionada. Master e demais papéis, bem como usuários sem unidade
+    selecionada, não são filtrados (retorna None).
+    """
+    if usuario.papel != "default" or x_unidade_id is None:
+        return None
+    return x_unidade_id
+
+
 def require_permission(pagina_chave: str, acao: str):
     def _verificar(
         usuario: Usuario = Depends(get_usuario_atual),

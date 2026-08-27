@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import require_permission, require_role
+from ..deps import get_escopo_unidade, require_permission, require_role
 
 router = APIRouter(prefix="/api/unidades", tags=["unidades"])
 
@@ -13,7 +13,14 @@ router = APIRouter(prefix="/api/unidades", tags=["unidades"])
 def listar_unidades(
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_role("master", "adm", "default"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
+    if unidade_id is not None:
+        return db.scalars(
+            select(models.Unidade)
+            .where(models.Unidade.id == unidade_id)
+            .order_by(models.Unidade.id)
+        ).all()
     return db.scalars(
         select(models.Unidade).order_by(models.Unidade.id)
     ).all()
@@ -24,9 +31,10 @@ def obter_unidade(
     unidade_id: int,
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_role("master", "adm", "default"),
+    escopo: int | None = Depends(get_escopo_unidade),
 ):
     unidade = db.get(models.Unidade, unidade_id)
-    if unidade is None:
+    if unidade is None or (escopo is not None and unidade.id != escopo):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Unidade não encontrada",
@@ -42,7 +50,13 @@ def listar_colaboradores(
     unidade_id: int,
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_role("master", "adm", "default"),
+    escopo: int | None = Depends(get_escopo_unidade),
 ):
+    if escopo is not None and unidade_id != escopo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Unidade não encontrada",
+        )
     if db.get(models.Unidade, unidade_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

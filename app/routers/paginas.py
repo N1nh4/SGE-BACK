@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .. import models, schemas
+from .. import catalogo, models, schemas
 from ..database import get_db
 from ..deps import require_role
 
@@ -47,6 +47,26 @@ def listar_paginas(
     _usuario: models.Usuario = require_role("master"),
 ):
     return db.scalars(select(models.Pagina).order_by(models.Pagina.id)).all()
+
+
+@router.get("/catalogo", response_model=list[schemas.PaginaCatalogo])
+def listar_catalogo_acoes(
+    db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master"),
+):
+    paginas = db.scalars(select(models.Pagina).order_by(models.Pagina.id)).all()
+    resultado = []
+    for pagina in paginas:
+        acoes = [
+            schemas.AcaoDisponivel(chave=a, nome=catalogo.ACAO_LABELS.get(a, a))
+            for a in catalogo.acoes_ordenadas(pagina.chave)
+        ]
+        if not acoes:
+            continue
+        resultado.append(
+            schemas.PaginaCatalogo(chave=pagina.chave, nome=pagina.nome, acoes=acoes)
+        )
+    return resultado
 
 
 class PerfilComAcoes(BaseModel):

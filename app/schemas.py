@@ -164,6 +164,18 @@ class UsuarioRead(BaseModel):
     updated_at: datetime
 
 
+class NotificacaoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    usuario_id: int
+    tipo: str
+    titulo: str
+    mensagem: str
+    lida: bool
+    created_at: datetime
+
+
 class UnidadeLogin(BaseModel):
     id: int
     nome: str
@@ -181,6 +193,17 @@ class PaginaRead(BaseModel):
 class PaginaComAcoes(BaseModel):
     chave: str
     acoes: list[str]
+
+
+class AcaoDisponivel(BaseModel):
+    chave: str
+    nome: str
+
+
+class PaginaCatalogo(BaseModel):
+    chave: str
+    nome: str
+    acoes: list[AcaoDisponivel]
 
 
 class PerfilPaginaItem(BaseModel):
@@ -235,6 +258,14 @@ class SelecionarUnidadeResponse(BaseModel):
     token: str
     usuario: UsuarioRead
     unidade_id: int
+    papel: str
+    paginas: list[PaginaComAcoes]
+
+
+class MeResponse(BaseModel):
+    usuario: UsuarioRead
+    unidades: list[UnidadeLogin]
+    unidade_id: int | None
     papel: str
     paginas: list[PaginaComAcoes]
 

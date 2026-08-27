@@ -4,18 +4,41 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import require_permission, require_role
+from ..deps import get_escopo_unidade, require_permission, require_role
 
 router = APIRouter(prefix="/api/objetivos", tags=["objetivos"])
 
 
-def _obter_objetivo(objetivo_id: int, db: Session) -> models.Objetivo:
+def _obter_objetivo(
+    objetivo_id: int,
+    db: Session,
+    unidade_id: int | None = None,
+) -> models.Objetivo:
     objetivo = db.get(models.Objetivo, objetivo_id)
     if objetivo is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Objetivo não encontrado",
         )
+    if unidade_id is not None:
+        tem = db.scalar(
+            select(1)
+            .select_from(models.Iniciativa)
+            .join(models.Iniciativa.indicadores)
+            .join(
+                models.indicador_unidades,
+                models.indicador_unidades.c.indicador_id == models.Indicador.id,
+            )
+            .where(
+                models.Iniciativa.objetivo_id == objetivo_id,
+                models.indicador_unidades.c.unidade_id == unidade_id,
+            )
+        )
+        if tem is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Objetivo não encontrado",
+            )
     return objetivo
 
 
@@ -23,9 +46,26 @@ def _obter_objetivo(objetivo_id: int, db: Session) -> models.Objetivo:
 def listar_objetivos(
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_role("master", "adm", "default"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
+    if unidade_id is None:
+        return db.scalars(
+            select(models.Objetivo).order_by(models.Objetivo.id)
+        ).all()
+
+    objetivo_ids = (
+        select(models.Iniciativa.objetivo_id)
+        .join(models.Iniciativa.indicadores)
+        .join(
+            models.indicador_unidades,
+            models.indicador_unidades.c.indicador_id == models.Indicador.id,
+        )
+        .where(models.indicador_unidades.c.unidade_id == unidade_id)
+    )
     return db.scalars(
-        select(models.Objetivo).order_by(models.Objetivo.id)
+        select(models.Objetivo)
+        .where(models.Objetivo.id.in_(objetivo_ids))
+        .order_by(models.Objetivo.id)
     ).all()
 
 
@@ -51,8 +91,9 @@ def obter_objetivo(
     objetivo_id: int,
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_role("master", "adm", "default"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
-    return _obter_objetivo(objetivo_id, db)
+    return _obter_objetivo(objetivo_id, db, unidade_id)
 
 
 @router.put("/{objetivo_id}", response_model=schemas.ObjetivoRead)

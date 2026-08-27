@@ -6,7 +6,7 @@ from sqlalchemy import inspect, text
 
 from . import models  # noqa: F401
 from .database import Base, engine
-from .routers import auth, comprovacoes, objetivos, paginas, planejamento, unidades, usuarios
+from .routers import auth, comprovacoes, notificacoes, objetivos, paginas, planejamento, unidades, usuarios
 
 
 def _migrar_colunas() -> None:
@@ -404,6 +404,7 @@ def _migrar_colunas() -> None:
             ("/unidades", "Unidades"),
             ("/validacao", "Validação"),
             ("/configurador", "Configurações"),
+            ("/notificacoes", "Notificações"),
         ]
         for chave, nome in paginas_disponiveis:
             if e_postgres:
@@ -427,20 +428,30 @@ def _migrar_colunas() -> None:
 
         all_actions = ["ver", "criar", "editar", "excluir"]
         view_approve = ["ver", "aprovar"]
+        planejar = ["ver", "criar", "editar", "relatorio"]
+        planejamento_master = ["ver", "criar", "editar", "excluir", "relatorio"]
+        ver_ler = ["ver", "ler"]
 
         permissoes_padrao = {
-            "master": {chave: all_actions for chave in [
-                "/indicadores", "/objetivos", "/planejamento",
-                "/comprovacoes", "/unidades", "/validacao", "/configurador",
-            ]},
+            "master": {
+                chave: all_actions for chave in [
+                    "/indicadores", "/objetivos", "/comprovacoes",
+                    "/unidades", "/configurador",
+                ]
+            } | {
+                "/planejamento": planejamento_master,
+                "/validacao": all_actions + ["aprovar"],
+                "/notificacoes": ver_ler,
+            },
             "adm": {
                 "/indicadores": ["ver", "criar", "editar"],
                 "/objetivos": ["ver", "criar", "editar"],
-                "/planejamento": ["ver", "criar", "editar"],
+                "/planejamento": planejar,
                 "/comprovacoes": ["ver"],
                 "/unidades": ["ver"],
                 "/validacao": view_approve,
                 "/configurador": [],
+                "/notificacoes": ver_ler,
             },
             "default": {
                 "/indicadores": ["ver"],
@@ -450,6 +461,7 @@ def _migrar_colunas() -> None:
                 "/unidades": ["ver"],
                 "/validacao": ["ver"],
                 "/configurador": [],
+                "/notificacoes": ver_ler,
             },
         }
         for papel, paginas_acoes in permissoes_padrao.items():
@@ -493,6 +505,7 @@ app.include_router(comprovacoes.router)
 app.include_router(unidades.router)
 app.include_router(usuarios.router)
 app.include_router(paginas.router)
+app.include_router(notificacoes.router)
 
 
 @app.get("/")

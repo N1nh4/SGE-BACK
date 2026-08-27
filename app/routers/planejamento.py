@@ -4,9 +4,17 @@ from sqlalchemy.orm import Session, selectinload
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import require_permission, require_role
+from ..deps import get_escopo_unidade, require_permission, require_role
+from .notificacoes import criar_notificacoes_para_unidade
 
 router = APIRouter(prefix="/api/planejamento", tags=["planejamento"])
+
+
+def _unidades_atribuidas(dados) -> list[int]:
+    unidade_ids: set[int] = set()
+    for ind in dados.indicadores:
+        unidade_ids.update(ind.unidade_ids or [])
+    return sorted(unidade_ids)
 
 
 def _opcoes():
@@ -26,9 +34,26 @@ def _opcoes():
 def listar_planejamento(
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_role("master", "adm", "default"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
+    if unidade_id is None:
+        return db.scalars(
+            select(models.Iniciativa)
+            .options(*_opcoes())
+            .order_by(models.Iniciativa.id)
+        ).all()
+
+    iniciativa_ids = (
+        select(models.Indicador.iniciativa_id)
+        .join(
+            models.indicador_unidades,
+            models.indicador_unidades.c.indicador_id == models.Indicador.id,
+        )
+        .where(models.indicador_unidades.c.unidade_id == unidade_id)
+    )
     return db.scalars(
         select(models.Iniciativa)
+        .where(models.Iniciativa.id.in_(iniciativa_ids))
         .options(*_opcoes())
         .order_by(models.Iniciativa.id)
     ).all()
@@ -39,6 +64,7 @@ def obter_planejamento(
     iniciativa_id: int,
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_role("master", "adm", "default"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
     iniciativa = db.scalar(
         select(models.Iniciativa)
@@ -50,6 +76,24 @@ def obter_planejamento(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Planejamento não encontrado",
         )
+    if unidade_id is not None:
+        pertence = db.scalar(
+            select(1)
+            .select_from(models.Indicador)
+            .join(
+                models.indicador_unidades,
+                models.indicador_unidades.c.indicador_id == models.Indicador.id,
+            )
+            .where(
+                models.Indicador.iniciativa_id == iniciativa_id,
+                models.indicador_unidades.c.unidade_id == unidade_id,
+            )
+        )
+        if pertence is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Planejamento não encontrado",
+            )
     return iniciativa
 
 
@@ -62,12 +106,21 @@ def criar_planejamento(
     dados: schemas.IniciativaCreate,
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_permission("/planejamento", "criar"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
     if db.get(models.Objetivo, dados.objetivo_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Objetivo estratégico não encontrado",
         )
+
+    if unidade_id is not None:
+        for ind_dados in dados.indicadores:
+            if ind_dados.unidade_ids and set(ind_dados.unidade_ids) != {unidade_id}:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Você só pode definir sua unidade como responsável",
+                )
 
     indicadores = []
     for ind_dados in dados.indicadores:
@@ -93,6 +146,17 @@ def criar_planejamento(
         indicadores=indicadores,
     )
     db.add(iniciativa)
+    db.flush()
+
+    criar_notificacoes_para_unidade(
+        db,
+        _unidades_atribuidas(dados),
+        tipo="planejamento",
+        titulo="Novo planejamento",
+        mensagem=f'Você foi definido(a) como responsável pela iniciativa "{dados.nome}".',
+        ignorar_usuario_id=_usuario.id,
+    )
+
     db.commit()
 
     return db.scalar(
@@ -108,6 +172,7 @@ def atualizar_planejamento(
     dados: schemas.IniciativaUpdate,
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_permission("/planejamento", "editar"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
 ):
     iniciativa = db.scalar(
         select(models.Iniciativa)
@@ -120,6 +185,25 @@ def atualizar_planejamento(
             detail="Planejamento não encontrado",
         )
 
+    if unidade_id is not None:
+        pertence = db.scalar(
+            select(1)
+            .select_from(models.Indicador)
+            .join(
+                models.indicador_unidades,
+                models.indicador_unidades.c.indicador_id == models.Indicador.id,
+            )
+            .where(
+                models.Indicador.iniciativa_id == iniciativa_id,
+                models.indicador_unidades.c.unidade_id == unidade_id,
+            )
+        )
+        if pertence is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Planejamento não encontrado",
+            )
+
     campos = dados.model_dump(exclude_unset=True)
     if "objetivo_id" in campos and campos["objetivo_id"] is not None:
         if db.get(models.Objetivo, campos["objetivo_id"]) is None:
@@ -127,6 +211,14 @@ def atualizar_planejamento(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Objetivo estratégico não encontrado",
             )
+
+    if unidade_id is not None and "indicadores" in campos:
+        for ind_dados in campos["indicadores"]:
+            if ind_dados.unidade_ids and set(ind_dados.unidade_ids) != {unidade_id}:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Você só pode definir sua unidade como responsável",
+                )
 
     if "nome" in campos:
         iniciativa.nome = campos["nome"]
@@ -150,6 +242,16 @@ def atualizar_planejamento(
                 indicador.etapas.append(models.IndicadorEtapa(nome=nome_etapa))
             novos_indicadores.append(indicador)
         iniciativa.indicadores = novos_indicadores
+
+    if "indicadores" in campos:
+        criar_notificacoes_para_unidade(
+            db,
+            _unidades_atribuidas(dados),
+            tipo="planejamento",
+            titulo="Planejamento atualizado",
+            mensagem=f'Você foi definido(a) como responsável pela iniciativa "{iniciativa.nome}".',
+            ignorar_usuario_id=_usuario.id,
+        )
 
     db.commit()
     return db.scalar(

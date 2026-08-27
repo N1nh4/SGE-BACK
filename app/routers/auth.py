@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..auth import criar_token, decodificar_token, verificar_senha
 from ..database import get_db
+from ..deps import get_usuario_atual
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -151,6 +152,39 @@ def selecionar_unidade(
         token=token,
         usuario=usuario,
         unidade_id=dados.unidade_id,
+        papel=papel,
+        paginas=paginas,
+    )
+
+
+def _papel_efetivo(usuario: models.Usuario, unidade_id: int | None, db: Session) -> str:
+    if usuario.papel == "master":
+        return "master"
+    if unidade_id is None:
+        return usuario.papel
+    papel = db.execute(
+        select(models.usuario_unidades.c.papel)
+        .where(
+            models.usuario_unidades.c.usuario_id == usuario.id,
+            models.usuario_unidades.c.unidade_id == unidade_id,
+        )
+    ).scalar_one_or_none()
+    return papel or usuario.papel
+
+
+@router.get("/me", response_model=schemas.MeResponse)
+def obter_perfil_atual(
+    usuario: models.Usuario = Depends(get_usuario_atual),
+    x_unidade_id: int | None = Header(default=None, convert_underscores=False),
+    db: Session = Depends(get_db),
+):
+    papel = _papel_efetivo(usuario, x_unidade_id, db)
+    paginas = _obter_paginas_por_papel(papel, db)
+    unidades = _obter_unidades_usuario(usuario, db)
+    return schemas.MeResponse(
+        usuario=usuario,
+        unidades=unidades,
+        unidade_id=x_unidade_id,
         papel=papel,
         paginas=paginas,
     )
