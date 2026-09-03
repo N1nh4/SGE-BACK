@@ -41,7 +41,7 @@ def listar_planejamento(
         return db.scalars(
             select(models.Iniciativa)
             .options(*_opcoes())
-            .order_by(models.Iniciativa.id)
+            .order_by(models.Iniciativa.id.desc())
         ).all()
 
     iniciativa_ids = (
@@ -56,7 +56,7 @@ def listar_planejamento(
         select(models.Iniciativa)
         .where(models.Iniciativa.id.in_(iniciativa_ids))
         .options(*_opcoes())
-        .order_by(models.Iniciativa.id)
+        .order_by(models.Iniciativa.id.desc())
     ).all()
 
 
