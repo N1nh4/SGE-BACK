@@ -1,10 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+import asyncio
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
+from ..auth import decodificar_token
 from ..database import get_db
 from ..deps import get_usuario_atual, require_role
+from ..services import notificacoes_stream
 
 router = APIRouter(prefix="/api/notificacoes", tags=["notificacoes"])
 
@@ -29,15 +35,65 @@ def quantidade_nao_lidas(
 ):
     usuario = _usuario
     total = db.scalar(
-        select(models.Notificacao)
+        select(func.count(models.Notificacao.id))
         .where(
             models.Notificacao.usuario_id == usuario.id,
             models.Notificacao.lida.is_(False),
         )
-        .with_only_columns(models.Notificacao.id)
-        .count()
     )
     return {"quantidade": total or 0}
+
+
+@router.get("/stream")
+async def stream_notificacoes(
+    token: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Fluxo SSE de notificações em tempo real para o usuário autenticado.
+
+    O front conecta via EventSource passando o token como query param.
+    Cada evento `message` dispara a atualização da quantidade de não lidas.
+    """
+    usuario_id = decodificar_token(token)
+    if usuario_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido ou expirado",
+        )
+    if db.get(models.Usuario, usuario_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado",
+        )
+
+    assinatura_id = uuid.uuid4().hex
+    fila, _ = notificacoes_stream.registrar_assinatura(usuario_id, assinatura_id)
+
+    async def gerar():
+        try:
+            # Comentário inicial: alguns proxies descartam o header até
+            # chegarem os primeiros bytes.
+            yield "retry: 15000\n\n"
+            while True:
+                try:
+                    mensagem = await asyncio.wait_for(fila.get(), timeout=25)
+                    yield f"event: atualizar\ndata: {mensagem}\n\n"
+                except asyncio.TimeoutError:
+                    # Heartbeat mantém a conexão viva entre eventos.
+                    yield ": ping\n\n"
+        except asyncio.CancelledError:
+            notificacoes_stream.remover_assinatura(usuario_id, assinatura_id)
+            raise
+
+    return StreamingResponse(
+        gerar(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/{notificacao_id}/ler", response_model=schemas.NotificacaoRead)
@@ -89,10 +145,14 @@ def criar_notificacoes_para_unidade(
     titulo: str,
     mensagem: str,
     ignorar_usuario_id: int | None = None,
-) -> None:
-    """Cria uma notificação para cada usuário ativo vinculado às unidades."""
+) -> list[int]:
+    """Cria uma notificação para cada usuário ativo vinculado às unidades.
+
+    Retorna os `usuario_id` que receberam notificação (excluindo quem criou),
+    para que o chamador possa notificar via SSE **após** o commit.
+    """
     if not unidade_ids:
-        return
+        return []
 
     usuarios = db.execute(
         select(models.Usuario.id)
@@ -107,6 +167,7 @@ def criar_notificacoes_para_unidade(
         .distinct()
     ).scalars().all()
 
+    notificados: list[int] = []
     for usuario_id in usuarios:
         if usuario_id == ignorar_usuario_id:
             continue
@@ -118,3 +179,5 @@ def criar_notificacoes_para_unidade(
                 mensagem=mensagem,
             )
         )
+        notificados.append(usuario_id)
+    return notificados

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, selectinload
 from .. import models, schemas
 from ..database import get_db
 from ..deps import get_escopo_unidade, require_permission, require_role
+from ..services import notificacoes_stream
 from .notificacoes import criar_notificacoes_para_unidade
 
 router = APIRouter(prefix="/api/planejamento", tags=["planejamento"])
@@ -148,7 +149,7 @@ def criar_planejamento(
     db.add(iniciativa)
     db.flush()
 
-    criar_notificacoes_para_unidade(
+    notificados = criar_notificacoes_para_unidade(
         db,
         _unidades_atribuidas(dados),
         tipo="planejamento",
@@ -158,6 +159,13 @@ def criar_planejamento(
     )
 
     db.commit()
+
+    if notificados:
+        for usuario_id in notificados:
+            notificacoes_stream.notificar_usuario(
+                usuario_id,
+                {"tipo": "planejamento", "titulo": "Novo planejamento"},
+            )
 
     return db.scalar(
         select(models.Iniciativa)
@@ -244,7 +252,7 @@ def atualizar_planejamento(
         iniciativa.indicadores = novos_indicadores
 
     if "indicadores" in campos:
-        criar_notificacoes_para_unidade(
+        notificados_update = criar_notificacoes_para_unidade(
             db,
             _unidades_atribuidas(dados),
             tipo="planejamento",
@@ -252,8 +260,18 @@ def atualizar_planejamento(
             mensagem=f'Você foi definido(a) como responsável pela iniciativa "{iniciativa.nome}".',
             ignorar_usuario_id=_usuario.id,
         )
+    else:
+        notificados_update = []
 
     db.commit()
+
+    if notificados_update:
+        for usuario_id in notificados_update:
+            notificacoes_stream.notificar_usuario(
+                usuario_id,
+                {"tipo": "planejamento", "titulo": "Planejamento atualizado"},
+            )
+
     return db.scalar(
         select(models.Iniciativa)
         .where(models.Iniciativa.id == iniciativa.id)
