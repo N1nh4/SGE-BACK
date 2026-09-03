@@ -6,7 +6,17 @@ from sqlalchemy import inspect, text
 
 from . import models  # noqa: F401
 from .database import Base, engine
-from .routers import auth, comprovacoes, notificacoes, objetivos, paginas, planejamento, unidades, usuarios
+from .routers import (
+    auth,
+    comprovacoes,
+    notificacoes,
+    objetivos,
+    paginas,
+    planejamento,
+    propostas,
+    unidades,
+    usuarios,
+)
 
 
 def _migrar_colunas() -> None:
@@ -455,7 +465,7 @@ def _migrar_colunas() -> None:
             },
             "default": {
                 "/indicadores": ["ver"],
-                "/planejamento": ["ver", "criar", "editar"],
+                "/planejamento": ["ver"],
                 "/comprovacoes": ["ver", "criar"],
                 "/objetivos": ["ver"],
                 "/unidades": ["ver"],
@@ -506,6 +516,7 @@ app.include_router(unidades.router)
 app.include_router(usuarios.router)
 app.include_router(paginas.router)
 app.include_router(notificacoes.router)
+app.include_router(propostas.router)
 
 
 @app.get("/")

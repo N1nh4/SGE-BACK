@@ -286,3 +286,91 @@ class UsuarioUpdate(BaseModel):
     papel: str | None = None
     unidade_id: int | None = None
     status: int | None = None
+
+
+class PropostaIndicadorEtapaCreate(BaseModel):
+    nome: str | None = Field(default=None, max_length=255)
+
+
+class PropostaEtapaRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+
+
+class PropostaIndicadorPayload(BaseModel):
+    """Indicador de uma proposta. Todos os campos opcionais."""
+
+    id: int | None = None  # presente ao editar um indicador já existente
+    nome: str | None = Field(default=None, max_length=255)
+    meta: str | None = Field(default=None, max_length=255)
+    rotulo_x: str | None = Field(default=None, max_length=255)
+    rotulo_y: str | None = Field(default=None, max_length=255)
+    orientacao: str | None = None
+    prazo: date | None = None
+    unidade_ids: list[int] = Field(default_factory=list)
+    etapas: list[PropostaIndicadorEtapaCreate] = Field(default_factory=list)
+
+
+class PropostaCreate(BaseModel):
+    """Criação/edição de uma proposta. Todos os campos opcionais."""
+
+    nome: str | None = Field(default=None, max_length=255)
+    objetivo_id: int | None = None
+    indicadores: list[PropostaIndicadorPayload] = Field(default_factory=list)
+
+
+class PropostaIndicadorEtapaAlias(BaseModel):
+    id: int | None = None
+    nome: str
+
+
+class PropostaUnidadeResumo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+
+
+class PropostaObjetivoResumo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    codigo: str
+    nome: str
+
+
+class PropostaIndicadorRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str | None
+    meta: str | None
+    rotulo_x: str | None
+    rotulo_y: str | None
+    orientacao: str | None
+    prazo: date | None
+    unidades: list[PropostaUnidadeResumo]
+    etapas: list[PropostaEtapaRead]
+
+
+class PropostaAutor(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+
+
+class PropostaRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str | None
+    enviado: bool
+    criado_por: int | None
+    criador: PropostaAutor | None
+    criado_at: datetime
+    atualizado_at: datetime
+    objetivo: PropostaObjetivoResumo | None
+    indicadores: list[PropostaIndicadorRead]

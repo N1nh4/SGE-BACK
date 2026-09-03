@@ -258,3 +258,103 @@ class PerfilPagina(Base):
     acoes: Mapped[list] = mapped_column(JSON, default=list)
 
     pagina: Mapped["Pagina"] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# Propostas de Planejamento (pré-planejamento / rascunho compartilhado)
+# ---------------------------------------------------------------------------
+# Espelham a estrutura oficial (Iniciativa/Indicador/IndicadorEtapa/unidades),
+# porém tudo opcional, pois são rascunhos. Um usuário "default" cria e envia;
+# master/adm trabalham em cima do rascunho e, ao final, convertem em
+# planejamento oficial.
+
+proposta_indicador_unidades = Table(
+    "proposta_indicador_unidades",
+    Base.metadata,
+    Column(
+        "proposta_indicador_id",
+        ForeignKey("propostas_indicadores.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "unidade_id",
+        ForeignKey("unidades.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
+class PropostaIniciativa(Base):
+    __tablename__ = "propostas_iniciativas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    objetivo_id: Mapped[int | None] = mapped_column(
+        ForeignKey("objetivos.id"), nullable=True
+    )
+    criado_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    enviado: Mapped[bool] = mapped_column(default=False)
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    planejamento_id: Mapped[int | None] = mapped_column(
+        ForeignKey("iniciativas.id", ondelete="SET NULL"), nullable=True
+    )
+    criado_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_agora
+    )
+    atualizado_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_agora, onupdate=_agora
+    )
+
+    objetivo: Mapped["Objetivo | None"] = relationship()
+    criador: Mapped["Usuario | None"] = relationship(
+        foreign_keys=[criado_por]
+    )
+    indicadores: Mapped[list["PropostaIndicador"]] = relationship(
+        back_populates="proposta",
+        cascade="all, delete-orphan",
+        order_by="PropostaIndicador.id",
+    )
+    planejamento: Mapped["Iniciativa | None"] = relationship()
+
+
+class PropostaIndicador(Base):
+    __tablename__ = "propostas_indicadores"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    proposta_id: Mapped[int] = mapped_column(
+        ForeignKey("propostas_iniciativas.id", ondelete="CASCADE")
+    )
+    nome: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    meta: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    rotulo_x: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    rotulo_y: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    orientacao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prazo: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    proposta: Mapped["PropostaIniciativa"] = relationship(
+        back_populates="indicadores"
+    )
+    unidades: Mapped[list["Unidade"]] = relationship(
+        secondary=proposta_indicador_unidades, backref="propostas_indicadores"
+    )
+    etapas: Mapped[list["PropostaIndicadorEtapa"]] = relationship(
+        back_populates="indicador", cascade="all, delete-orphan"
+    )
+
+
+class PropostaIndicadorEtapa(Base):
+    __tablename__ = "propostas_indicador_etapas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    proposta_indicador_id: Mapped[int] = mapped_column(
+        ForeignKey("propostas_indicadores.id", ondelete="CASCADE")
+    )
+    nome: Mapped[str] = mapped_column(String(255))
+
+    indicador: Mapped["PropostaIndicador"] = relationship(
+        back_populates="etapas"
+    )

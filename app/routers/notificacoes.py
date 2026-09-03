@@ -181,3 +181,39 @@ def criar_notificacoes_para_unidade(
         )
         notificados.append(usuario_id)
     return notificados
+
+
+def criar_notificacoes_para_papeis(
+    db: Session,
+    papeis: list[str],
+    tipo: str,
+    titulo: str,
+    mensagem: str,
+    ignorar_usuario_id: int | None = None,
+) -> list[int]:
+    """Cria uma notificação para cada usuário ativo com um dos papéis dados.
+
+    Usado para avisar usuários não-default (master/adm/teste) sobre novas
+    propostas de planejamento.
+    """
+    usuarios = db.execute(
+        select(models.Usuario.id).where(
+            models.Usuario.papel.in_(papeis),
+            models.Usuario.status == 1,
+        )
+    ).scalars().all()
+
+    notificados: list[int] = []
+    for usuario_id in usuarios:
+        if usuario_id == ignorar_usuario_id:
+            continue
+        db.add(
+            models.Notificacao(
+                usuario_id=usuario_id,
+                tipo=tipo,
+                titulo=titulo,
+                mensagem=mensagem,
+            )
+        )
+        notificados.append(usuario_id)
+    return notificados
