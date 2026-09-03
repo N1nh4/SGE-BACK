@@ -156,6 +156,7 @@ def criar_planejamento(
         titulo="Novo planejamento",
         mensagem=f'Você foi definido(a) como responsável pela iniciativa "{dados.nome}".',
         ignorar_usuario_id=_usuario.id,
+        entidade_id=iniciativa.id,
     )
 
     db.commit()
@@ -259,6 +260,7 @@ def atualizar_planejamento(
             titulo="Planejamento atualizado",
             mensagem=f'Você foi definido(a) como responsável pela iniciativa "{iniciativa.nome}".',
             ignorar_usuario_id=_usuario.id,
+            entidade_id=iniciativa.id,
         )
     else:
         notificados_update = []

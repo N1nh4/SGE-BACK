@@ -145,6 +145,7 @@ def criar_notificacoes_para_unidade(
     titulo: str,
     mensagem: str,
     ignorar_usuario_id: int | None = None,
+    entidade_id: int | None = None,
 ) -> list[int]:
     """Cria uma notificação para cada usuário ativo vinculado às unidades.
 
@@ -177,6 +178,7 @@ def criar_notificacoes_para_unidade(
                 tipo=tipo,
                 titulo=titulo,
                 mensagem=mensagem,
+                entidade_id=entidade_id,
             )
         )
         notificados.append(usuario_id)
@@ -190,6 +192,7 @@ def criar_notificacoes_para_papeis(
     titulo: str,
     mensagem: str,
     ignorar_usuario_id: int | None = None,
+    entidade_id: int | None = None,
 ) -> list[int]:
     """Cria uma notificação para cada usuário ativo com um dos papéis dados.
 
@@ -213,6 +216,7 @@ def criar_notificacoes_para_papeis(
                 tipo=tipo,
                 titulo=titulo,
                 mensagem=mensagem,
+                entidade_id=entidade_id,
             )
         )
         notificados.append(usuario_id)

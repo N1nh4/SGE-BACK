@@ -174,6 +174,7 @@ class NotificacaoRead(BaseModel):
     mensagem: str
     lida: bool
     created_at: datetime
+    entidade_id: int | None = None
 
 
 class UnidadeLogin(BaseModel):

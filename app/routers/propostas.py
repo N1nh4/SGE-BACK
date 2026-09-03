@@ -243,6 +243,7 @@ def enviar_proposta(
         titulo="Nova proposta de planejamento",
         mensagem=f'{_usuario.nome} enviou uma proposta de planejamento ("{proposta.nome or "sem título"}").',
         ignorar_usuario_id=_usuario.id,
+        entidade_id=proposta.id,
     )
 
     db.commit()

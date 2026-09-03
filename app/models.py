@@ -209,6 +209,7 @@ class Notificacao(Base):
     tipo: Mapped[str] = mapped_column(String(30))
     titulo: Mapped[str] = mapped_column(String(255))
     mensagem: Mapped[str] = mapped_column(Text)
+    entidade_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     lida: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora

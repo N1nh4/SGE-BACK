@@ -57,6 +57,9 @@ def _migrar_colunas() -> None:
             "senha_hash": "VARCHAR(255) NOT NULL DEFAULT ''",
             "status": "INTEGER NOT NULL DEFAULT 1",
         },
+        "notificacoes": {
+            "entidade_id": "INTEGER",
+        },
     }
     colunas_de_data = {"created_at", "updated_at"}
 
