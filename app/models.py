@@ -152,6 +152,10 @@ class Comprovacao(Base):
     etapa_id: Mapped[int | None] = mapped_column(
         ForeignKey("indicador_etapas.id", ondelete="SET NULL"), nullable=True
     )
+    usuario_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    versao: Mapped[int] = mapped_column(Integer, default=1)
     ano: Mapped[int] = mapped_column(Integer)
     mes: Mapped[int] = mapped_column(Integer)
     arquivo_nome: Mapped[str] = mapped_column(String(255))
@@ -173,6 +177,7 @@ class Comprovacao(Base):
 
     indicador: Mapped["Indicador"] = relationship(back_populates="comprovacoes")
     etapa: Mapped["IndicadorEtapa | None"] = relationship()
+    usuario: Mapped["Usuario | None"] = relationship()
 
 
 class Usuario(Base):

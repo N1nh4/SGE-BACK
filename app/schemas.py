@@ -142,6 +142,8 @@ class ComprovacaoRead(BaseModel):
     id: int
     indicador_id: int
     etapa_id: int | None
+    usuario_id: int | None
+    versao: int
     ano: int
     mes: int
     arquivo_nome: str

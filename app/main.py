@@ -51,6 +51,8 @@ def _migrar_colunas() -> None:
             "justificativa": "TEXT",
             "prazo_reenvio": "DATE",
             "etapa_id": "INTEGER",
+            "usuario_id": "INTEGER",
+            "versao": "INTEGER NOT NULL DEFAULT 1",
         },
         "usuarios": {
             "unidade_id": "INTEGER",
