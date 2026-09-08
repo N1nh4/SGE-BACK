@@ -154,6 +154,14 @@ class ComprovacaoRead(BaseModel):
     updated_at: datetime
 
 
+class ComprovacaoContextoRead(BaseModel):
+    unidade_id: int
+    planejamento_id: int
+    indicador_id: int
+    mes: int
+    ano: int
+
+
 class UsuarioRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

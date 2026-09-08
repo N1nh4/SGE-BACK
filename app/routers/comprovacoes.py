@@ -252,6 +252,46 @@ def visualizar_comprovacao(
     )
 
 
+@router.get(
+    "/api/comprovacoes/{comprovacao_id}/contexto",
+    response_model=schemas.ComprovacaoContextoRead,
+)
+def contexto_comprovacao(
+    comprovacao_id: int,
+    db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role(*PAPEIS_GESTOR),
+    unidade_id: int | None = Depends(get_escopo_unidade),
+):
+    comprovacao = db.get(models.Comprovacao, comprovacao_id)
+    if comprovacao is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comprovação não encontrada",
+        )
+
+    indicador = db.get(models.Indicador, comprovacao.indicador_id)
+    if indicador is None or not indicador.unidades:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Indicador sem unidade vinculada",
+        )
+
+    if unidade_id is not None and any(
+        unidade.id == unidade_id for unidade in indicador.unidades
+    ):
+        unidade_efetiva = unidade_id
+    else:
+        unidade_efetiva = indicador.unidades[0].id
+
+    return schemas.ComprovacaoContextoRead(
+        unidade_id=unidade_efetiva,
+        planejamento_id=indicador.iniciativa_id,
+        indicador_id=indicador.id,
+        mes=comprovacao.mes,
+        ano=comprovacao.ano,
+    )
+
+
 @router.delete(
     "/api/comprovacoes/{comprovacao_id}",
     status_code=status.HTTP_204_NO_CONTENT,

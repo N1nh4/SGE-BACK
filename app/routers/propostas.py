@@ -6,7 +6,10 @@ from .. import models, schemas
 from ..database import get_db
 from ..deps import get_usuario_atual
 from ..services import notificacoes_stream
-from .notificacoes import criar_notificacoes_para_papeis
+from .notificacoes import (
+    criar_notificacoes_para_papeis,
+    criar_notificacoes_para_unidade,
+)
 
 router = APIRouter(prefix="/api/propostas", tags=["propostas"])
 
@@ -329,7 +332,32 @@ def converter_proposta(
     db.flush()
 
     proposta.planejamento_id = iniciativa.id
+
+    unidade_ids = sorted(
+        {
+            unidade.id
+            for p_ind in proposta.indicadores
+            for unidade in p_ind.unidades
+        }
+    )
+
+    notificados = criar_notificacoes_para_unidade(
+        db,
+        unidade_ids,
+        tipo="planejamento",
+        titulo="Novo planejamento",
+        mensagem=f'Você foi definido(a) como responsável pela iniciativa "{proposta.nome}".',
+        ignorar_usuario_id=_usuario.id,
+        entidade_id=iniciativa.id,
+    )
+
     db.commit()
+
+    for usuario_id in notificados:
+        notificacoes_stream.notificar_usuario(
+            usuario_id,
+            {"tipo": "planejamento", "titulo": "Novo planejamento"},
+        )
 
     return db.scalar(
         select(models.Iniciativa)
