@@ -16,7 +16,12 @@ from starlette.responses import FileResponse
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import get_escopo_unidade, require_permission, require_role
+from ..deps import (
+    get_escopo_unidade,
+    get_usuario_atual,
+    require_permission,
+    require_role,
+)
 from .notificacoes import criar_notificacoes_para_papeis
 from ..services import notificacoes_stream
 
@@ -211,6 +216,109 @@ async def criar_comprovacao(
     return comprovacao
 
 
+@router.post(
+    "/api/indicadores/{indicador_id}/comprovacoes/sem-atualizacao",
+    response_model=schemas.ComprovacaoRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def criar_sem_atualizacao(
+    indicador_id: int,
+    dados: schemas.ComprovacaoCreate,
+    db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_permission("/comprovacoes", "criar"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
+):
+    if unidade_id is not None:
+        pertence = db.scalar(
+            select(1)
+            .select_from(models.indicador_unidades)
+            .where(
+                models.indicador_unidades.c.indicador_id == indicador_id,
+                models.indicador_unidades.c.unidade_id == unidade_id,
+            )
+        )
+        if pertence is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Indicador não pertence à sua unidade",
+            )
+    elif db.get(models.Indicador, indicador_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Indicador não encontrado",
+        )
+
+    if dados.etapa_id is not None:
+        base_query = select(models.Comprovacao).where(
+            models.Comprovacao.indicador_id == indicador_id,
+            models.Comprovacao.etapa_id == dados.etapa_id,
+        )
+    else:
+        base_query = select(models.Comprovacao).where(
+            models.Comprovacao.indicador_id == indicador_id,
+            models.Comprovacao.ano == dados.ano,
+            models.Comprovacao.mes == dados.mes,
+        )
+    versao_anterior = db.scalar(
+        base_query.order_by(models.Comprovacao.versao.desc()).limit(1)
+    )
+    proxima_versao = (versao_anterior.versao if versao_anterior else 0) + 1
+
+    comprovacao = models.Comprovacao(
+        indicador_id=indicador_id,
+        etapa_id=dados.etapa_id,
+        usuario_id=_usuario.id,
+        versao=proxima_versao,
+        ano=dados.ano,
+        mes=dados.mes,
+        arquivo_nome="",
+        arquivo_caminho="",
+        status=models.StatusComprovacao.SEM_ATUALIZACAO,
+    )
+    db.add(comprovacao)
+    db.commit()
+    db.refresh(comprovacao)
+
+    indicador = db.get(models.Indicador, indicador_id)
+    nome_indicador = indicador.nome if indicador else f"indicador #{indicador_id}"
+    nome_etapa = ""
+    if dados.etapa_id is not None:
+        etapa = db.get(models.IndicadorEtapa, dados.etapa_id)
+        if etapa:
+            nome_etapa = etapa.nome
+
+    notificados = criar_notificacoes_para_papeis(
+        db,
+        PAPEIS_GESTOR,
+        tipo="sem_atualizacao",
+        titulo="Sem atualização registrada",
+        mensagem=(
+            f'{_usuario.nome} registrou sem atualização para o indicador "{nome_indicador}"'
+            + (f' — etapa "{nome_etapa}"' if nome_etapa else "")
+            + " neste mês."
+        ),
+        ignorar_usuario_id=_usuario.id,
+        entidade_id=comprovacao.id,
+    )
+    db.commit()
+
+    for usuario_id in notificados:
+        notificacoes_stream.notificar_usuario(
+            usuario_id,
+            {
+                "tipo": "sem_atualizacao",
+                "titulo": "Sem atualização registrada",
+                "mensagem": (
+                    f'{_usuario.nome} registrou sem atualização para o indicador "{nome_indicador}"'
+                    + (f' — etapa "{nome_etapa}"' if nome_etapa else "")
+                    + " neste mês."
+                ),
+            },
+        )
+
+    return comprovacao
+
+
 @router.get("/api/comprovacoes/{comprovacao_id}/arquivo")
 def visualizar_comprovacao(
     comprovacao_id: int,
@@ -239,7 +347,7 @@ def visualizar_comprovacao(
                 detail="Comprovação não encontrada",
             )
     caminho = _raiz() / comprovacao.arquivo_caminho
-    if not caminho.is_file():
+    if not comprovacao.arquivo_caminho or not caminho.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Arquivo não encontrado",
@@ -259,7 +367,7 @@ def visualizar_comprovacao(
 def contexto_comprovacao(
     comprovacao_id: int,
     db: Session = Depends(get_db),
-    _usuario: models.Usuario = require_role(*PAPEIS_GESTOR),
+    _usuario: models.Usuario = Depends(get_usuario_atual),
     unidade_id: int | None = Depends(get_escopo_unidade),
 ):
     comprovacao = db.get(models.Comprovacao, comprovacao_id)
@@ -322,7 +430,8 @@ def excluir_comprovacao(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Comprovação não pertence à sua unidade",
             )
-    (_raiz() / comprovacao.arquivo_caminho).unlink(missing_ok=True)
+    if comprovacao.arquivo_caminho:
+        (_raiz() / comprovacao.arquivo_caminho).unlink(missing_ok=True)
 
     if comprovacao.status == models.StatusComprovacao.APROVADO:
         indicador = db.get(models.Indicador, comprovacao.indicador_id)

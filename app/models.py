@@ -12,6 +12,7 @@ class StatusComprovacao(str, Enum):
     ANALISE = "analise"
     APROVADO = "aprovado"
     RECUSADO = "recusado"
+    SEM_ATUALIZACAO = "sem_atualizacao"
 
 
 def _agora() -> datetime:

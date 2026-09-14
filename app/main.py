@@ -25,6 +25,30 @@ def _migrar_colunas() -> None:
     e_postgres = engine.dialect.name == "postgresql"
     pk_col = "id SERIAL PRIMARY KEY" if e_postgres else "id INTEGER PRIMARY KEY AUTOINCREMENT"
 
+    # PostgreSQL: garantir que o enum statuscomprovacao aceite o valor
+    # "sem_atualizacao" (idempotente). ALTER TYPE ADD VALUE não roda dentro
+    # de transação no PG < 12, por isso usa conexão em AUTOCOMMIT.
+    if e_postgres:
+        with engine.connect() as conn_enum:
+            conn_enum = conn_enum.execution_options(isolation_level="AUTOCOMMIT")
+            existe_enum = conn_enum.execute(
+                text("SELECT 1 FROM pg_type WHERE typname = 'statuscomprovacao'")
+            ).scalar()
+            if existe_enum is not None:
+                tem_valor = conn_enum.execute(
+                    text(
+                        "SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid "
+                        "WHERE t.typname = 'statuscomprovacao' "
+                        "AND e.enumlabel = 'sem_atualizacao'"
+                    )
+                ).scalar()
+                if tem_valor is None:
+                    conn_enum.execute(
+                        text(
+                            "ALTER TYPE statuscomprovacao ADD VALUE 'sem_atualizacao'"
+                        )
+                    )
+
     # SQLite não aceita DEFAULT não-constante (ex.: CURRENT_TIMESTAMP) em
     # ADD COLUMN, então colunas de data são adicionadas sem default e os
     # registros existentes são preenchidos em seguida. Os valores de novas
@@ -487,7 +511,7 @@ def _migrar_colunas() -> None:
                         "INSERT INTO perfil_paginas (perfil_id, pagina_id, acoes) "
                         "SELECT pf.id, pg.id, CAST(:acoes AS JSONB) FROM perfis pf, paginas pg "
                         "WHERE pf.chave = :papel AND pg.chave = :chave "
-                        "ON CONFLICT (perfil_id, pagina_id) DO UPDATE SET acoes = CAST(:acoes AS JSONB)"
+                        "ON CONFLICT (perfil_id, pagina_id) DO NOTHING"
                     ),
                     {"papel": papel, "chave": chave, "acoes": acoes_json},
                 )
