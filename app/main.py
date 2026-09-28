@@ -462,59 +462,12 @@ def _migrar_colunas() -> None:
                     {"chave": chave, "nome": nome},
                 )
 
-        # Popular perfil_paginas padrão com acoes (idempotente).
-        import json
-
-        all_actions = ["ver", "criar", "editar", "excluir"]
-        view_approve = ["ver", "aprovar"]
-        planejar = ["ver", "criar", "editar", "relatorio"]
-        planejamento_master = ["ver", "criar", "editar", "excluir", "relatorio"]
-        ver_ler = ["ver", "ler"]
-
-        permissoes_padrao = {
-            "master": {
-                chave: all_actions for chave in [
-                    "/indicadores", "/objetivos", "/comprovacoes",
-                    "/unidades", "/configurador",
-                ]
-            } | {
-                "/planejamento": planejamento_master,
-                "/validacao": all_actions + ["aprovar"],
-                "/notificacoes": ver_ler,
-            },
-            "adm": {
-                "/indicadores": ["ver", "criar", "editar"],
-                "/objetivos": ["ver", "criar", "editar"],
-                "/planejamento": planejar,
-                "/comprovacoes": ["ver"],
-                "/unidades": ["ver"],
-                "/validacao": view_approve,
-                "/configurador": [],
-                "/notificacoes": ver_ler,
-            },
-            "default": {
-                "/indicadores": ["ver"],
-                "/planejamento": ["ver"],
-                "/comprovacoes": ["ver", "criar"],
-                "/objetivos": ["ver"],
-                "/unidades": ["ver"],
-                "/validacao": ["ver"],
-                "/configurador": [],
-                "/notificacoes": ver_ler,
-            },
-        }
-        for papel, paginas_acoes in permissoes_padrao.items():
-            for chave, acoes in paginas_acoes.items():
-                acoes_json = json.dumps(acoes)
-                conn.execute(
-                    text(
-                        "INSERT INTO perfil_paginas (perfil_id, pagina_id, acoes) "
-                        "SELECT pf.id, pg.id, CAST(:acoes AS JSONB) FROM perfis pf, paginas pg "
-                        "WHERE pf.chave = :papel AND pg.chave = :chave "
-                        "ON CONFLICT (perfil_id, pagina_id) DO NOTHING"
-                    ),
-                    {"papel": papel, "chave": chave, "acoes": acoes_json},
-                )
+        # perfil_paginas NÃO é populado aqui de propósito.
+        # O seed anterior rodava a cada startup e reinseria as permissões padrão
+        # sempre que uma linha não existia. Como o configurador salva apagando as
+        # linhas e reenviando só as páginas marcadas, toda permissão desmarcada
+        # voltava sozinha no próximo restart. As permissões agora são de
+        # responsabilidade exclusiva do master, cadastradas pelo configurador.
 
 
 @asynccontextmanager
