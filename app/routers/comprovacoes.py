@@ -537,10 +537,27 @@ def atualizar_status_comprovacao(
     if novo_aprovado and not antigo_aprovado:
         indicador = db.get(models.Indicador, comprovacao.indicador_id)
         if indicador:
-            indicador.valor_acumulado += 1
+            ciclo_vencido = (
+                indicador.ano_ciclo is None
+                or indicador.ano_ciclo < comprovacao.ano
+            )
+            if indicador.anual and ciclo_vencido:
+                # Ano novo: o contador recomeça no ciclo que está começando.
+                # O valor do ano anterior deixa de ser o corrente, mas não é
+                # apagado — continua em valor_acumulado/ano_ciclo e dá para
+                # reconstruir pelas comprovações aprovadas daquele ano.
+                indicador.valor_acumulado = 1
+                indicador.ano_ciclo = comprovacao.ano
+            else:
+                indicador.valor_acumulado += 1
     elif antigo_aprovado and not novo_aprovado:
         indicador = db.get(models.Indicador, comprovacao.indicador_id)
-        if indicador and indicador.valor_acumulado > 0:
+        # Só desconta se a comprovação pertence ao ciclo que o contador mede.
+        if (
+            indicador
+            and indicador.valor_acumulado > 0
+            and (not indicador.anual or indicador.ano_ciclo == comprovacao.ano)
+        ):
             indicador.valor_acumulado -= 1
 
     db.commit()

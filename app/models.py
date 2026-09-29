@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from enum import Enum
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, JSON, String, Table, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, JSON, String, Table, Text
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,6 +17,19 @@ class StatusComprovacao(str, Enum):
 
 def _agora() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _prazo_no_ciclo(prazo: date | None, anual: bool) -> date | None:
+    """Reaplica o mesmo dia/mês no ano corrente quando o indicador é anual,
+    para que o prazo ande sozinho na virada do ano."""
+    if prazo is None or not anual:
+        return prazo
+    ano = date.today().year
+    try:
+        return date(ano, prazo.month, prazo.day)
+    except ValueError:
+        # 29 de fevereiro em ano não bissexto: cai para 28.
+        return date(ano, 2, 28)
 
 
 class Objetivo(Base):
@@ -65,7 +78,7 @@ class Iniciativa(Base):
         total = sum(len(i.etapas) for i in indicadores)
         if total == 0:
             return 0.0
-        acumulado = sum(i.valor_acumulado for i in indicadores)
+        acumulado = sum(i.acumulado_efetivo for i in indicadores)
         return round((acumulado / total) * 100, 1)
 
 
@@ -104,6 +117,8 @@ class Indicador(Base):
     rotulo_y: Mapped[str] = mapped_column(Text)
     orientacao: Mapped[str] = mapped_column(Text)
     prazo: Mapped[date | None] = mapped_column(Date, nullable=True)
+    anual: Mapped[bool] = mapped_column(Boolean, default=False)
+    ano_ciclo: Mapped[int | None] = mapped_column(Integer, nullable=True)
     valor_acumulado: Mapped[float] = mapped_column(default=0.0)
     iniciativa_id: Mapped[int] = mapped_column(ForeignKey("iniciativas.id"))
     created_at: Mapped[datetime] = mapped_column(
@@ -125,11 +140,30 @@ class Indicador(Base):
     )
 
     @property
+    def prazo_efetivo(self) -> date | None:
+        """Prazo do ciclo vigente. Em indicador anual o mesmo dia/mês é
+        reaplicado no ano corrente, então o prazo anda sozinho na virada."""
+        return _prazo_no_ciclo(self.prazo, self.anual)
+
+    @property
+    def acumulado_efetivo(self) -> float:
+        """Valor acumulado do ciclo vigente. Em indicador anual, um ano novo
+        começa zerado: o contador só volta a andar na primeira aprovação do
+        novo ano. O valor do ano anterior não é apagado — ele continua em
+        valor_acumulado/ano_ciclo e é reconstruível pelas comprovações
+        aprovadas daquele ano."""
+        if self.anual and (
+            self.ano_ciclo is None or self.ano_ciclo < date.today().year
+        ):
+            return 0.0
+        return self.valor_acumulado
+
+    @property
     def progresso(self) -> float:
         total = len(self.etapas)
         if total == 0:
             return 0.0
-        return round((self.valor_acumulado / total) * 100, 1)
+        return round((self.acumulado_efetivo / total) * 100, 1)
 
 
 class IndicadorEtapa(Base):
@@ -341,6 +375,7 @@ class PropostaIndicador(Base):
     rotulo_y: Mapped[str | None] = mapped_column(Text, nullable=True)
     orientacao: Mapped[str | None] = mapped_column(Text, nullable=True)
     prazo: Mapped[date | None] = mapped_column(Date, nullable=True)
+    anual: Mapped[bool] = mapped_column(Boolean, default=False)
 
     proposta: Mapped["PropostaIniciativa"] = relationship(
         back_populates="indicadores"
@@ -351,6 +386,10 @@ class PropostaIndicador(Base):
     etapas: Mapped[list["PropostaIndicadorEtapa"]] = relationship(
         back_populates="indicador", cascade="all, delete-orphan"
     )
+
+    @property
+    def prazo_efetivo(self) -> date | None:
+        return _prazo_no_ciclo(self.prazo, self.anual)
 
 
 class PropostaIndicadorEtapa(Base):

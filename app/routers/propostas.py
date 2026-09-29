@@ -317,6 +317,7 @@ def converter_proposta(
             rotulo_y=p_ind.rotulo_y,
             orientacao=p_ind.orientacao,
             prazo=p_ind.prazo,
+            anual=p_ind.anual,
             unidades=p_ind.unidades,
         )
         for p_etapa in p_ind.etapas:

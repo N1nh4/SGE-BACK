@@ -55,6 +55,8 @@ def _migrar_colunas() -> None:
     # ADD COLUMN, então colunas de data são adicionadas sem default e os
     # registros existentes são preenchidos em seguida. Os valores de novas
     # linhas e atualizações são definidos pelo Python (default/onupdate).
+    # Em boolean o literal também difere: PostgreSQL só aceita true/false.
+    bool_false = "false" if e_postgres else "0"
     definicoes_por_tabela = {
         "objetivos": {
             "created_at": (
@@ -71,6 +73,11 @@ def _migrar_colunas() -> None:
             "valor_acumulado": "REAL NOT NULL DEFAULT 0",
             "rotulo_x": "VARCHAR(255) NOT NULL DEFAULT ''",
             "rotulo_y": "VARCHAR(255) NOT NULL DEFAULT ''",
+            "anual": f"BOOLEAN NOT NULL DEFAULT {bool_false}",
+            "ano_ciclo": "INTEGER",
+        },
+        "propostas_indicadores": {
+            "anual": f"BOOLEAN NOT NULL DEFAULT {bool_false}",
         },
         "comprovacoes": {
             "status": "VARCHAR(20) NOT NULL DEFAULT 'analise'",

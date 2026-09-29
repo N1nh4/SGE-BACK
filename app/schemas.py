@@ -42,6 +42,7 @@ class IndicadorCreate(BaseModel):
     rotulo_y: str = Field(min_length=1, max_length=TEXTO_MAX)
     orientacao: str = Field(min_length=1)
     prazo: date | None = None
+    anual: bool = False
     unidade_ids: list[int] = Field(default_factory=list)
     etapas: list[str] = Field(default_factory=list)
 
@@ -92,6 +93,8 @@ class IndicadorRead(BaseModel):
     rotulo_y: str
     orientacao: str
     prazo: date | None
+    anual: bool
+    prazo_efetivo: date | None
     unidades: list[UnidadeResumo]
     etapas: list[EtapaRead]
     progresso: float
@@ -324,6 +327,7 @@ class PropostaIndicadorPayload(BaseModel):
     rotulo_y: str | None = Field(default=None, max_length=TEXTO_MAX)
     orientacao: str | None = None
     prazo: date | None = None
+    anual: bool = False
     unidade_ids: list[int] = Field(default_factory=list)
     etapas: list[PropostaIndicadorEtapaCreate] = Field(default_factory=list)
 
@@ -366,6 +370,8 @@ class PropostaIndicadorRead(BaseModel):
     rotulo_y: str | None
     orientacao: str | None
     prazo: date | None
+    anual: bool
+    prazo_efetivo: date | None
     unidades: list[PropostaUnidadeResumo]
     etapas: list[PropostaEtapaRead]
 
