@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -7,6 +8,28 @@ from ..database import get_db
 from ..deps import get_escopo_unidade, require_permission, require_role
 
 router = APIRouter(prefix="/api/objetivos", tags=["objetivos"])
+
+
+def _apagar_arquivos_comprovacao(objetivo: models.Objetivo, db: Session) -> None:
+    """Remove do disco os anexos das comprovações do objetivo.
+
+    As linhas do banco saem por cascade (objetivo -> iniciativas ->
+    indicadores -> comprovacoes), mas o arquivo físico continua no disco se
+    ninguém apagar antes.
+    """
+    raiz = Path(__file__).resolve().parents[2]
+    caminhos = (
+        select(models.Comprovacao.arquivo_caminho)
+        .join(models.Indicador, models.Comprovacao.indicador_id == models.Indicador.id)
+        .join(models.Iniciativa, models.Indicador.iniciativa_id == models.Iniciativa.id)
+        .where(
+            models.Iniciativa.objetivo_id == objetivo.id,
+            models.Comprovacao.arquivo_caminho != "",
+        )
+    )
+    for caminho in db.scalars(caminhos):
+        (raiz / caminho).unlink(missing_ok=True)
+
 
 
 def _obter_objetivo(
@@ -118,5 +141,20 @@ def excluir_objetivo(
     _usuario: models.Usuario = require_permission("/objetivos", "excluir"),
 ):
     objetivo = _obter_objetivo(objetivo_id, db)
+
+    # A cascata do ORM (delete-orphan) cobre objetivo -> iniciativas ->
+    # indicadores -> comprovacoes, mas propostas_iniciativas tem FK sem
+    # ondelete e sem cascade: sem esta limpeza o DELETE estourava
+    # ForeignKeyViolation e voltava 500.
+    propostas = db.scalars(
+        select(models.PropostaIniciativa).where(
+            models.PropostaIniciativa.objetivo_id == objetivo_id
+        )
+    )
+    for proposta in list(propostas):
+        db.delete(proposta)
+
+    _apagar_arquivos_comprovacao(objetivo, db)
+
     db.delete(objetivo)
     db.commit()
