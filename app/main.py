@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text
 
+from . import erros
 from . import models  # noqa: F401
 from .database import Base, engine
 from .routers import (
@@ -173,8 +175,8 @@ def _migrar_colunas() -> None:
                 text(
                     "CREATE TABLE IF NOT EXISTS indicador_etapas ("
                     f"  {pk_col},"
-                    "  indicador_id INTEGER NOT NULL,"
-                    "  nome VARCHAR(255) NOT NULL,"
+                        "  indicador_id INTEGER NOT NULL,"
+                        "  nome TEXT NOT NULL,"
                     f"  created_at {ts_type},"
                     "  FOREIGN KEY (indicador_id) REFERENCES indicadores(id)"
                     "    ON DELETE CASCADE"
@@ -199,6 +201,33 @@ def _migrar_colunas() -> None:
                         f"TYPE VARCHAR(1000)"
                     )
                 )
+
+        # Migração: campos de texto livre de VARCHAR(255) para TEXT, para que
+        # descrições longas (nome da iniciativa, meta, rótulos, etapas) não
+        # esbarrem em um limite apertado. Idempotente.
+        campos_texto = {
+            "objetivos": ("nome",),
+            "iniciativas": ("nome",),
+            "indicadores": ("nome", "meta", "rotulo_x", "rotulo_y"),
+            "indicador_etapas": ("nome",),
+            "propostas_iniciativas": ("nome",),
+            "propostas_indicadores": ("nome", "meta", "rotulo_x", "rotulo_y"),
+            "propostas_indicador_etapas": ("nome",),
+        }
+        if e_postgres:
+            tabelas_existentes = set(insp.get_table_names())
+            for tabela, colunas in campos_texto.items():
+                if tabela not in tabelas_existentes:
+                    continue
+                existentes = {col["name"] for col in insp.get_columns(tabela)}
+                for coluna in colunas:
+                    if coluna in existentes:
+                        conn.execute(
+                            text(
+                                f"ALTER TABLE {tabela} "
+                                f"ALTER COLUMN {coluna} TYPE TEXT"
+                            )
+                        )
 
         # Migração: converter usuarios.papel de enum para VARCHAR (PostgreSQL).
         if e_postgres and "usuarios" in insp.get_table_names():
@@ -289,7 +318,7 @@ def _migrar_colunas() -> None:
                         "CREATE TABLE objetivos ("
                         f"  {pk_col},"
                         "  codigo VARCHAR(20) NOT NULL UNIQUE,"
-                        "  nome VARCHAR(255) NOT NULL,"
+                        "  nome TEXT NOT NULL,"
                         "  ppa VARCHAR(1000) NOT NULL,"
                         "  loa VARCHAR(1000) NOT NULL,"
                         "  created_at DATETIME,"
@@ -323,7 +352,7 @@ def _migrar_colunas() -> None:
                             "CREATE TABLE objetivos ("
                             f"  {pk_col},"
                             "  codigo VARCHAR(20) NOT NULL UNIQUE,"
-                            "  nome VARCHAR(255) NOT NULL,"
+                            "  nome TEXT NOT NULL,"
                             "  ppa VARCHAR(1000) NOT NULL,"
                             "  loa VARCHAR(1000) NOT NULL,"
                             "  created_at DATETIME,"
@@ -478,6 +507,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SGE API", version="0.1.0", lifespan=lifespan)
+
+# Erros de validação do Pydantic chegam em inglês e técnico; o handler devolve
+# uma frase em português que o toast do frontend mostra direto.
+app.add_exception_handler(RequestValidationError, erros.tratar_validacao)
 
 app.add_middleware(
     CORSMiddleware,

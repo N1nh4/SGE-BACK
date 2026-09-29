@@ -4,17 +4,21 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .models import StatusComprovacao
 
+# Campos de texto livre no banco são TEXT. O limite existe só para barrar
+# entradas absurdas (ex.: colagem gigante), não para cortar texto legítimo.
+TEXTO_MAX = 2000
+
 
 class ObjetivoCreate(BaseModel):
     codigo: str = Field(min_length=1, max_length=20)
-    nome: str = Field(min_length=1, max_length=255)
+    nome: str = Field(min_length=1, max_length=TEXTO_MAX)
     ppa: str = Field(min_length=1, max_length=1000)
     loa: str = Field(min_length=1, max_length=1000)
 
 
 class ObjetivoUpdate(BaseModel):
     codigo: str | None = Field(default=None, max_length=20)
-    nome: str | None = Field(default=None, max_length=255)
+    nome: str | None = Field(default=None, max_length=TEXTO_MAX)
     ppa: str | None = Field(default=None, max_length=1000)
     loa: str | None = Field(default=None, max_length=1000)
 
@@ -32,10 +36,10 @@ class ObjetivoRead(BaseModel):
 
 
 class IndicadorCreate(BaseModel):
-    nome: str = Field(min_length=1, max_length=255)
-    meta: str = Field(min_length=1, max_length=255)
-    rotulo_x: str = Field(min_length=1, max_length=255)
-    rotulo_y: str = Field(min_length=1, max_length=255)
+    nome: str = Field(min_length=1, max_length=TEXTO_MAX)
+    meta: str = Field(min_length=1, max_length=TEXTO_MAX)
+    rotulo_x: str = Field(min_length=1, max_length=TEXTO_MAX)
+    rotulo_y: str = Field(min_length=1, max_length=TEXTO_MAX)
     orientacao: str = Field(min_length=1)
     prazo: date | None = None
     unidade_ids: list[int] = Field(default_factory=list)
@@ -44,13 +48,13 @@ class IndicadorCreate(BaseModel):
 
 class IniciativaCreate(BaseModel):
     objetivo_id: int
-    nome: str = Field(min_length=1, max_length=255)
+    nome: str = Field(min_length=1, max_length=TEXTO_MAX)
     indicadores: list[IndicadorCreate] = Field(default_factory=list, min_length=1)
 
 
 class IniciativaUpdate(BaseModel):
     objetivo_id: int | None = None
-    nome: str | None = Field(default=None, max_length=255)
+    nome: str | None = Field(default=None, max_length=TEXTO_MAX)
     indicadores: list[IndicadorCreate] | None = None
 
 
@@ -300,7 +304,7 @@ class UsuarioUpdate(BaseModel):
 
 
 class PropostaIndicadorEtapaCreate(BaseModel):
-    nome: str | None = Field(default=None, max_length=255)
+    nome: str | None = Field(default=None, max_length=TEXTO_MAX)
 
 
 class PropostaEtapaRead(BaseModel):
@@ -314,10 +318,10 @@ class PropostaIndicadorPayload(BaseModel):
     """Indicador de uma proposta. Todos os campos opcionais."""
 
     id: int | None = None  # presente ao editar um indicador já existente
-    nome: str | None = Field(default=None, max_length=255)
-    meta: str | None = Field(default=None, max_length=255)
-    rotulo_x: str | None = Field(default=None, max_length=255)
-    rotulo_y: str | None = Field(default=None, max_length=255)
+    nome: str | None = Field(default=None, max_length=TEXTO_MAX)
+    meta: str | None = Field(default=None, max_length=TEXTO_MAX)
+    rotulo_x: str | None = Field(default=None, max_length=TEXTO_MAX)
+    rotulo_y: str | None = Field(default=None, max_length=TEXTO_MAX)
     orientacao: str | None = None
     prazo: date | None = None
     unidade_ids: list[int] = Field(default_factory=list)
@@ -327,7 +331,7 @@ class PropostaIndicadorPayload(BaseModel):
 class PropostaCreate(BaseModel):
     """Criação/edição de uma proposta. Todos os campos opcionais."""
 
-    nome: str | None = Field(default=None, max_length=255)
+    nome: str | None = Field(default=None, max_length=TEXTO_MAX)
     objetivo_id: int | None = None
     indicadores: list[PropostaIndicadorPayload] = Field(default_factory=list)
 

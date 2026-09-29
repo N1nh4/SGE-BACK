@@ -24,7 +24,7 @@ class Objetivo(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     codigo: Mapped[str] = mapped_column(String(20), unique=True, index=True)
-    nome: Mapped[str] = mapped_column(String(255))
+    nome: Mapped[str] = mapped_column(Text)
     ppa: Mapped[str] = mapped_column(String(1000))
     loa: Mapped[str] = mapped_column(String(1000))
     created_at: Mapped[datetime] = mapped_column(
@@ -43,7 +43,7 @@ class Iniciativa(Base):
     __tablename__ = "iniciativas"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome: Mapped[str] = mapped_column(String(255))
+    nome: Mapped[str] = mapped_column(Text)
     objetivo_id: Mapped[int] = mapped_column(ForeignKey("objetivos.id"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
@@ -98,10 +98,10 @@ class Indicador(Base):
     __tablename__ = "indicadores"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome: Mapped[str] = mapped_column(String(255))
-    meta: Mapped[str] = mapped_column(String(255))
-    rotulo_x: Mapped[str] = mapped_column(String(255))
-    rotulo_y: Mapped[str] = mapped_column(String(255))
+    nome: Mapped[str] = mapped_column(Text)
+    meta: Mapped[str] = mapped_column(Text)
+    rotulo_x: Mapped[str] = mapped_column(Text)
+    rotulo_y: Mapped[str] = mapped_column(Text)
     orientacao: Mapped[str] = mapped_column(Text)
     prazo: Mapped[date | None] = mapped_column(Date, nullable=True)
     valor_acumulado: Mapped[float] = mapped_column(default=0.0)
@@ -137,7 +137,7 @@ class IndicadorEtapa(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     indicador_id: Mapped[int] = mapped_column(ForeignKey("indicadores.id", ondelete="CASCADE"))
-    nome: Mapped[str] = mapped_column(String(255))
+    nome: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
     )
@@ -295,7 +295,7 @@ class PropostaIniciativa(Base):
     __tablename__ = "propostas_iniciativas"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nome: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    nome: Mapped[str | None] = mapped_column(Text, nullable=True)
     objetivo_id: Mapped[int | None] = mapped_column(
         ForeignKey("objetivos.id"), nullable=True
     )
@@ -335,10 +335,10 @@ class PropostaIndicador(Base):
     proposta_id: Mapped[int] = mapped_column(
         ForeignKey("propostas_iniciativas.id", ondelete="CASCADE")
     )
-    nome: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    meta: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    rotulo_x: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    rotulo_y: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    nome: Mapped[str | None] = mapped_column(Text, nullable=True)
+    meta: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rotulo_x: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rotulo_y: Mapped[str | None] = mapped_column(Text, nullable=True)
     orientacao: Mapped[str | None] = mapped_column(Text, nullable=True)
     prazo: Mapped[date | None] = mapped_column(Date, nullable=True)
 
@@ -360,7 +360,7 @@ class PropostaIndicadorEtapa(Base):
     proposta_indicador_id: Mapped[int] = mapped_column(
         ForeignKey("propostas_indicadores.id", ondelete="CASCADE")
     )
-    nome: Mapped[str] = mapped_column(String(255))
+    nome: Mapped[str] = mapped_column(Text)
 
     indicador: Mapped["PropostaIndicador"] = relationship(
         back_populates="etapas"
