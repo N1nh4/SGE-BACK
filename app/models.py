@@ -59,6 +59,10 @@ class Iniciativa(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(Text)
     objetivo_id: Mapped[int] = mapped_column(ForeignKey("objetivos.id"))
+    # Ano a que o planejamento pertence. Planejamento com indicador "cíclico
+    # anual" continua valendo nos anos seguintes, então o filtro por ano mostra
+    # quem tem ano == selecionado OU algum indicador anual.
+    ano: Mapped[int] = mapped_column(Integer, default=lambda: date.today().year)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
     )

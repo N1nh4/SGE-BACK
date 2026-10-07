@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import date
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -69,6 +70,11 @@ def _migrar_colunas() -> None:
             "ppa": "VARCHAR(1000) NOT NULL DEFAULT ''",
             "loa": "VARCHAR(1000) NOT NULL DEFAULT ''",
         },
+        "iniciativas": {
+            # Ano a que o planejamento pertence. O default fica no Python; os
+            # registros existentes são preenchidos no passo de migração a seguir.
+            "ano": "INTEGER",
+        },
         "indicadores": {
             "unidade_id": "INTEGER",
             "valor_acumulado": "REAL NOT NULL DEFAULT 0",
@@ -125,6 +131,35 @@ def _migrar_colunas() -> None:
                             f"UPDATE {tabela} SET {nome} = CURRENT_TIMESTAMP "
                             f"WHERE {nome} IS NULL"
                         )
+                    )
+
+        # Migração: preencher ano dos planejamentos existentes. O ano de
+        # referência é o da criação (virada de ano preserva o histórico);
+        # sem data criada, cai no ano corrente.
+        if "iniciativas" in insp.get_table_names():
+            colunas_ini = {
+                col["name"] for col in insp.get_columns("iniciativas")
+            }
+            if "ano" in colunas_ini:
+                ano_atual = date.today().year
+                if e_postgres:
+                    conn.execute(
+                        text(
+                            "UPDATE iniciativas "
+                            "SET ano = COALESCE(EXTRACT(YEAR FROM created_at)::int, :ano) "
+                            "WHERE ano IS NULL"
+                        ),
+                        {"ano": ano_atual},
+                    )
+                else:
+                    conn.execute(
+                        text(
+                            "UPDATE iniciativas "
+                            "SET ano = COALESCE(CAST(strftime('%Y', created_at) "
+                            "AS INTEGER), :ano) "
+                            "WHERE ano IS NULL"
+                        ),
+                        {"ano": ano_atual},
                     )
 
         # Migração: antigo responsavel_id passou a ser unidade_id.

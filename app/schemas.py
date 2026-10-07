@@ -51,12 +51,15 @@ class IniciativaCreate(BaseModel):
     objetivo_id: int
     nome: str = Field(min_length=1, max_length=TEXTO_MAX)
     indicadores: list[IndicadorCreate] = Field(default_factory=list, min_length=1)
+    # Ano a que o planejamento pertence. Ausente/sem valor = ano corrente.
+    ano: int | None = Field(default=None, ge=2000, le=2100)
 
 
 class IniciativaUpdate(BaseModel):
     objetivo_id: int | None = None
     nome: str | None = Field(default=None, max_length=TEXTO_MAX)
     indicadores: list[IndicadorCreate] | None = None
+    ano: int | None = Field(default=None, ge=2000, le=2100)
 
 
 class ObjetivoResumo(BaseModel):
@@ -160,6 +163,7 @@ class IniciativaRead(BaseModel):
 
     id: int
     nome: str
+    ano: int
     progresso: float | None
     objetivo: ObjetivoResumo
     indicadores: list[IndicadorRead]

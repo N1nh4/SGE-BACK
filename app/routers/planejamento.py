@@ -1,5 +1,7 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from .. import models, schemas
@@ -36,17 +38,39 @@ def _opcoes():
     )
 
 
+def _tem_indicador_ciclico():
+    """Subconsulta correlacionada: a iniciativa é cíclica se tem ao menos um
+    indicador "cíclico anual". Cíclico segue valendo nos anos seguintes."""
+    return (
+        select(models.Indicador.id)
+        .where(
+            models.Indicador.iniciativa_id == models.Iniciativa.id,
+            models.Indicador.anual.is_(True),
+        )
+        .exists()
+    )
+
+
 @router.get("", response_model=list[schemas.IniciativaRead])
 def listar_planejamento(
     db: Session = Depends(get_db),
     _usuario: models.Usuario = require_role("master", "adm", "default"),
     unidade_id: int | None = Depends(get_escopo_unidade),
+    ano: int | None = None,
 ):
+    # Sem filtro de ano: todos os anos (visão geral / histórico).
+    statement = select(models.Iniciativa).options(*_opcoes())
+
+    if ano is not None:
+        # No ano selecionado: os planejamentos daquele ano + os cíclicos, que
+        # continuam valendo nos anos seguintes.
+        statement = statement.where(
+            or_(models.Iniciativa.ano == ano, _tem_indicador_ciclico())
+        )
+
     if unidade_id is None:
         return db.scalars(
-            select(models.Iniciativa)
-            .options(*_opcoes())
-            .order_by(models.Iniciativa.id.desc())
+            statement.order_by(models.Iniciativa.id.desc())
         ).all()
 
     iniciativa_ids = (
@@ -58,10 +82,9 @@ def listar_planejamento(
         .where(models.indicador_unidades.c.unidade_id == unidade_id)
     )
     return db.scalars(
-        select(models.Iniciativa)
-        .where(models.Iniciativa.id.in_(iniciativa_ids))
-        .options(*_opcoes())
-        .order_by(models.Iniciativa.id.desc())
+        statement.where(models.Iniciativa.id.in_(iniciativa_ids)).order_by(
+            models.Iniciativa.id.desc()
+        )
     ).all()
 
 
@@ -149,6 +172,7 @@ def criar_planejamento(
     iniciativa = models.Iniciativa(
         nome=dados.nome,
         objetivo_id=dados.objetivo_id,
+        ano=dados.ano or date.today().year,
         indicadores=indicadores,
     )
     db.add(iniciativa)
@@ -238,6 +262,8 @@ def atualizar_planejamento(
         iniciativa.nome = campos["nome"]
     if "objetivo_id" in campos:
         iniciativa.objetivo_id = campos["objetivo_id"]
+    if "ano" in campos and campos["ano"] is not None:
+        iniciativa.ano = campos["ano"]
     if "indicadores" in campos:
         # Mapa nome->id dos indicadores atuais, para reconhecer um indicador
         # que o usuário apenas editou (mesmo nome, mesmo lugar na lista).
