@@ -14,11 +14,16 @@ router = APIRouter(prefix="/api/indicadores", tags=["planejamento"])
 def _colaboradores_por_unidade(
     db: Session, unidade_ids: list[int]
 ) -> dict[int, list[models.Usuario]]:
-    """Colaboradores de cada unidade, na ordem do cadastro.
+    """Colaboradores ativos de cada unidade, na ordem do cadastro.
 
     A mesma pessoa pode estar em mais de uma unidade (usuario_unidades é
     N:N), e nessa situação ela gera uma etapa em cada: são públicos distintos,
     já que a meta é medida por unidade.
+
+    Somente `status == 1` entra na conta. Toda rotina que mede população de
+    colaboradores (alvo, geração de etapas, contagens em telas) usa ativos;
+    inativos continuam visíveis no cadastro da unidade para poderem ser
+    reativados.
     """
     if not unidade_ids:
         return {}
@@ -31,6 +36,7 @@ def _colaboradores_por_unidade(
         )
         .join(models.Usuario, models.Usuario.id == models.usuario_unidades.c.usuario_id)
         .where(models.usuario_unidades.c.unidade_id.in_(unidade_ids))
+        .where(models.Usuario.status == 1)
         .order_by(
             models.usuario_unidades.c.unidade_id,
             models.Usuario.nome,
@@ -61,8 +67,12 @@ def gerar_etapas_por_colaborador(
 
     A meta de capacitação é medida por colaborador comprovado, e não por
     documento: a etapa é a unidade de prova. Assim a aprovação de uma etapa
-    equivale a um colaborador comprovado, e a porcentagem sai da fórmula que
-    o sistema já usa (aprovadas / etapas).
+    equivale a um colaborador comprovado.
+
+    O percentual pedido aqui é gravado no indicador e passa a ser o
+    denominador do progresso. Sem gravá-lo, 1 de 3 aprovações exigidas por
+    uma meta de 50% apareceria como 1/6 = 17% na tela de planejamento, já
+    que a geração cria as 6 etapas.
 
     O alvo é calculado por unidade, arredondado para cima. Uma unidade com 6
     pessoas e meta de 80% precisa de 5 aprovações; arredondar o total
@@ -163,9 +173,9 @@ def gerar_etapas_por_colaborador(
             )
             criadas += 1
 
-    db.commit()
-
     if criadas == 0 and alvo_por_unidade == []:
+        # Antes do commit: sem colaborador não há alvo, e gravar o percentual
+        # mudaria o denominador do progresso de etapas já existentes.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
@@ -173,6 +183,9 @@ def gerar_etapas_por_colaborador(
                 "Cadastre os colaboradores nas unidades para gerar as etapas."
             ),
         )
+
+    indicador.percentual_alvo = dados.percentual_alvo
+    db.commit()
 
     return schemas.EtapasGeradasRead(
         etapas_criadas=criadas,

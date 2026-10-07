@@ -116,7 +116,11 @@ def obter_indicador(
         .where(models.Indicador.id == indicador_id)
         .options(
             selectinload(models.Indicador.unidades),
-            selectinload(models.Indicador.etapas),
+            # denominador_progresso olha a situação do colaborador de cada
+            # etapa para deixar os inativos fora da população.
+            selectinload(models.Indicador.etapas).selectinload(
+                models.IndicadorEtapa.colaborador
+            ),
         )
     )
     if indicador is None:

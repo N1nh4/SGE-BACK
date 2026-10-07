@@ -28,6 +28,11 @@ def _opcoes():
         selectinload(models.Iniciativa.indicadores).selectinload(
             models.Indicador.etapas
         ),
+        # denominador_progresso consulta a situação do colaborador de cada
+        # etapa para deixar os inativos fora da população.
+        selectinload(models.Iniciativa.indicadores)
+        .selectinload(models.Indicador.etapas)
+        .selectinload(models.IndicadorEtapa.colaborador),
     )
 
 

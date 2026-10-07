@@ -53,6 +53,12 @@ async def stream_notificacoes(
 
     O front conecta via EventSource passando o token como query param.
     Cada evento `message` dispara a atualização da quantidade de não lidas.
+
+    A sessão é devolvida ao pool antes do primeiro evento. O `finally` do
+    `get_db` só executa quando o stream cai — ou seja, nunca enquanto o
+    cliente estiver conectado — e uma transação aberta segura um lock de
+    leitura em `usuarios`, que é o bastante para o `ALTER TABLE` das
+    migrações de startup ficar esperando para sempre.
     """
     usuario_id = decodificar_token(token)
     if usuario_id is None:
@@ -65,6 +71,7 @@ async def stream_notificacoes(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuário não encontrado",
         )
+    db.close()
 
     assinatura_id = uuid.uuid4().hex
     fila, _ = notificacoes_stream.registrar_assinatura(usuario_id, assinatura_id)

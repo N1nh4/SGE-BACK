@@ -1,7 +1,8 @@
 from datetime import date, datetime, timezone
 from enum import Enum
+import math
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, JSON, String, Table, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Table, Text
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -75,15 +76,21 @@ class Iniciativa(Base):
         indicadores = self.indicadores
         if not indicadores:
             return 0.0
-        # Indicador sem etapa não tem denominador: ele não pode entrar nem no
-        # numerador nem no denominador. Se entrasse só no numerador, um único
-        # documento aprovado em indicador sem etapas faria a iniciativa passar
-        # de 100%.
-        mensuraveis = [i for i in indicadores if i.etapas]
-        total = sum(len(i.etapas) for i in mensuraveis)
+        # Indicador sem denominador não pode entrar nem no numerador nem no
+        # denominador. Se entrasse só no numerador, um único documento
+        # aprovado em indicador sem etapas faria a iniciativa passar de 100%.
+        # Cada indicador entra com o seu próprio denominador: os medidos por
+        # colaborador pesam pelo alvo, os demais pelo total de etapas.
+        total = 0
+        acumulado = 0.0
+        for indicador in indicadores:
+            denominador = indicador.denominador_progresso
+            if denominador == 0:
+                continue
+            total += denominador
+            acumulado += indicador.acumulado_efetivo
         if total == 0:
             return 0.0
-        acumulado = sum(i.acumulado_efetivo for i in mensuraveis)
         return round((acumulado / total) * 100, 1)
 
 
@@ -125,6 +132,10 @@ class Indicador(Base):
     anual: Mapped[bool] = mapped_column(Boolean, default=False)
     ano_ciclo: Mapped[int | None] = mapped_column(Integer, nullable=True)
     valor_acumulado: Mapped[float] = mapped_column(default=0.0)
+    # Percentual pedido na geração de etapas por colaborador (50 = "50% dos
+    # colaboradores ativos"). Nulo nas etapas cadastradas manualmente ou nas
+    # geradas antes desta regra: nesses casos o denominador é o total de etapas.
+    percentual_alvo: Mapped[float | None] = mapped_column(Float, nullable=True)
     iniciativa_id: Mapped[int] = mapped_column(ForeignKey("iniciativas.id"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
@@ -164,11 +175,51 @@ class Indicador(Base):
         return self.valor_acumulado
 
     @property
+    def alvo(self) -> int | None:
+        """Alvo de aprovações quando a meta é medida por colaborador.
+
+        Indicador medido por colaborador não conta etapas, conta alvo: a meta
+        "50% dos 6 colaboradores ativos" exige 3 aprovações, não 6. O alvo é
+        recalculado por unidade e arredondado para cima, para que nenhuma
+        unidade precise de mais aprovações do que ela tem gente.
+
+        Pessoas inativas ficam de fora da população, mas as etapas delas
+        continuam existindo — elas apenas não pesam. Nada aqui limita o
+        progresso a 100%: quem comprova 6 de 6 com meta de 50% está em 200%.
+
+        None nas etapas manuais ou nas geradas antes desta regra: aí o que se
+        conta é aprovadas / etapas e não há alvo a informar.
+        """
+        if self.percentual_alvo is None:
+            return None
+
+        por_unidade: dict[int | None, int] = {}
+        for etapa in self.etapas:
+            colaborador = etapa.colaborador
+            if colaborador is not None and colaborador.status != 1:
+                continue
+            por_unidade[etapa.unidade_id] = por_unidade.get(etapa.unidade_id, 0) + 1
+
+        return sum(
+            math.ceil(quantidade * self.percentual_alvo / 100)
+            for quantidade in por_unidade.values()
+        )
+
+    @property
+    def denominador_progresso(self) -> int:
+        """O que o progresso deste indicador precisa atingir: o alvo, ou o
+        total de etapas quando a meta não é medida por colaborador."""
+        alvo = self.alvo
+        if alvo is not None:
+            return alvo
+        return len(self.etapas)
+
+    @property
     def progresso(self) -> float | None:
-        # Sem etapa não existe denominador, então não existe progresso a
-        # calcular. Devolver 0 seria mentir: o indicador não está em 0%, está
-        # sem forma de ser medido. None é o que a tela traduz como "—".
-        total = len(self.etapas)
+        # Sem denominador não existe progresso a calcular. Devolver 0 seria
+        # mentir: o indicador não está em 0%, está sem forma de ser medido.
+        # None é o que a tela traduz como "—".
+        total = self.denominador_progresso
         if total == 0:
             return None
         return round((self.acumulado_efetivo / total) * 100, 1)

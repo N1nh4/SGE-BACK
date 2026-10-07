@@ -128,6 +128,11 @@ class IndicadorRead(BaseModel):
     prazo_efetivo: date | None
     unidades: list[UnidadeResumo]
     etapas: list[EtapaRead]
+    # Denominador do progresso. Nulo nas etapas manuais: aí o progresso é
+    # aprovadas / etapas; quando definido, é aprovadas / alvo (pode passar
+    # de 100%).
+    percentual_alvo: float | None = None
+    alvo: int | None = None
     progresso: float | None
     created_at: datetime
     updated_at: datetime

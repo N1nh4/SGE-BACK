@@ -76,6 +76,9 @@ def _migrar_colunas() -> None:
             "rotulo_y": "VARCHAR(255) NOT NULL DEFAULT ''",
             "anual": f"BOOLEAN NOT NULL DEFAULT {bool_false}",
             "ano_ciclo": "INTEGER",
+            # Percentual pedido na geração de etapas por colaborador. Nulo nas
+            # etapas manuais: o denominador do progresso passa a ser o alvo.
+            "percentual_alvo": "REAL",
         },
         "propostas_indicadores": {
             "anual": f"BOOLEAN NOT NULL DEFAULT {bool_false}",
