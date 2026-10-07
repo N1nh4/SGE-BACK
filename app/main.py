@@ -11,6 +11,7 @@ from .database import Base, engine
 from .routers import (
     auth,
     comprovacoes,
+    etapas_colaboradores,
     notificacoes,
     objetivos,
     paginas,
@@ -94,6 +95,12 @@ def _migrar_colunas() -> None:
         },
         "notificacoes": {
             "entidade_id": "INTEGER",
+        },
+        # Etapa gerada por colaborador guarda a unidade de origem, para que
+        # cada setor comprove apenas os seus.
+        "indicador_etapas": {
+            "unidade_id": "INTEGER",
+            "colaborador_id": "INTEGER",
         },
     }
     colunas_de_data = {"created_at", "updated_at"}
@@ -533,6 +540,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(objetivos.router)
 app.include_router(planejamento.router)
+app.include_router(etapas_colaboradores.router)
 app.include_router(comprovacoes.router)
 app.include_router(unidades.router)
 app.include_router(usuarios.router)

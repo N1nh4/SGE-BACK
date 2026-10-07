@@ -11,7 +11,7 @@ from fastapi import (
     status,
 )
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from starlette.responses import FileResponse
 
 from .. import models, schemas
@@ -78,6 +78,53 @@ def listar_comprovacoes(
             models.Comprovacao.versao.desc(),
         )
     ).all()
+
+
+@router.get(
+    "/api/indicadores/{indicador_id}",
+    response_model=schemas.IndicadorRead,
+)
+def obter_indicador(
+    indicador_id: int,
+    db: Session = Depends(get_db),
+    _usuario: models.Usuario = require_role("master", "adm", "default"),
+    unidade_id: int | None = Depends(get_escopo_unidade),
+):
+    """Indicador isolado, para a tela de comprovações.
+
+    A rota do front virou /comprovacoes/{indicador_id}: sem o id da iniciativa
+    na URL a tela precisa buscar o indicador sozinho, em vez de carregar todos
+    os planejamentos só para achar um.
+    """
+    if unidade_id is not None:
+        pertence = db.scalar(
+            select(1)
+            .select_from(models.indicador_unidades)
+            .where(
+                models.indicador_unidades.c.indicador_id == indicador_id,
+                models.indicador_unidades.c.unidade_id == unidade_id,
+            )
+        )
+        if pertence is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Indicador não encontrado",
+            )
+
+    indicador = db.scalar(
+        select(models.Indicador)
+        .where(models.Indicador.id == indicador_id)
+        .options(
+            selectinload(models.Indicador.unidades),
+            selectinload(models.Indicador.etapas),
+        )
+    )
+    if indicador is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Indicador não encontrado",
+        )
+    return indicador
 
 
 @router.post(
@@ -435,7 +482,8 @@ def excluir_comprovacao(
 
     if comprovacao.status == models.StatusComprovacao.APROVADO:
         indicador = db.get(models.Indicador, comprovacao.indicador_id)
-        if indicador and indicador.valor_acumulado > 0:
+        # Mesmo critério da aprovação: só desconta se o contador contou etapas.
+        if indicador and indicador.etapas and indicador.valor_acumulado > 0:
             indicador.valor_acumulado -= 1
 
     db.delete(comprovacao)
@@ -536,7 +584,12 @@ def atualizar_status_comprovacao(
 
     if novo_aprovado and not antigo_aprovado:
         indicador = db.get(models.Indicador, comprovacao.indicador_id)
-        if indicador:
+        # valor_acumulado conta etapas concluídas. Indicador sem etapa não tem
+        # denominador, então não tem o que acumular: mexer no contador deixaria
+        # um número órfão que apareceria como progresso se as etapas fossem
+        # cadastradas depois. A situação real da meta sem etapa é lida pelas
+        # comprovações aprovadas, não por este contador.
+        if indicador and indicador.etapas:
             ciclo_vencido = (
                 indicador.ano_ciclo is None
                 or indicador.ano_ciclo < comprovacao.ano
@@ -555,6 +608,7 @@ def atualizar_status_comprovacao(
         # Só desconta se a comprovação pertence ao ciclo que o contador mede.
         if (
             indicador
+            and indicador.etapas
             and indicador.valor_acumulado > 0
             and (not indicador.anual or indicador.ano_ciclo == comprovacao.ano)
         ):

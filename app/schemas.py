@@ -81,6 +81,37 @@ class EtapaRead(BaseModel):
 
     id: int
     nome: str
+    # Preenchidos apenas em etapa gerada por colaborador.
+    unidade_id: int | None = None
+    colaborador_id: int | None = None
+
+
+class AlvoUnidade(BaseModel):
+    unidade_id: int
+    unidade_nome: str
+    populacao: int
+    alvo: int
+
+
+class GerarEtapasColaboradores(BaseModel):
+    """Gera uma etapa por colaborador nas unidades do indicador.
+
+    O alvo é calculado por unidade: 80% de uma unidade com 6 pessoas exige 5
+    aprovações (arredondado para cima), e não 80% do total somado. Arredondar
+    por unidade evita exigir de uma unidade um número maior que a sua população.
+    """
+
+    percentual_alvo: float = Field(gt=0, le=100)
+    # Quando verdadeiro, remove as etapas geradas antes para regerar a lista
+    # sem duplicar. Etapas com comprovação aprovada não são removidas.
+    substituir: bool = True
+
+
+class EtapasGeradasRead(BaseModel):
+    etapas_criadas: int
+    etapas_removidas: int
+    # Alvo de aprovações por unidade (id, nome, populacao, alvo).
+    alvo_por_unidade: list[AlvoUnidade]
 
 
 class IndicadorRead(BaseModel):
@@ -97,7 +128,7 @@ class IndicadorRead(BaseModel):
     prazo_efetivo: date | None
     unidades: list[UnidadeResumo]
     etapas: list[EtapaRead]
-    progresso: float
+    progresso: float | None
     created_at: datetime
     updated_at: datetime
 
@@ -124,7 +155,7 @@ class IniciativaRead(BaseModel):
 
     id: int
     nome: str
-    progresso: float
+    progresso: float | None
     objetivo: ObjetivoResumo
     indicadores: list[IndicadorRead]
     created_at: datetime

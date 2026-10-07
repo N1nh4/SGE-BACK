@@ -234,10 +234,69 @@ def atualizar_planejamento(
     if "objetivo_id" in campos:
         iniciativa.objetivo_id = campos["objetivo_id"]
     if "indicadores" in campos:
+        # Mapa nome->id dos indicadores atuais, para reconhecer um indicador
+        # que o usuário apenas editou (mesmo nome, mesmo lugar na lista).
+        indicadores_atuais = list(iniciativa.indicadores)
+        ids_preservados: set[int] = set()
+
+        # Indicadores que têm etapa gerada com aprovação não podem ser
+        # recriados: a cascading apagaria o histórico de validação. Nesses
+        # casos o indicador é atualizado no lugar.
+        indicadores_com_aprova = {
+            linha
+            for linha in db.execute(
+                select(models.Comprovacao.indicador_id)
+                .join(
+                    models.IndicadorEtapa,
+                    models.IndicadorEtapa.id
+                    == models.Comprovacao.etapa_id,
+                )
+                .where(
+                    models.IndicadorEtapa.colaborador_id.is_not(None),
+                    models.Comprovacao.status
+                    == models.StatusComprovacao.APROVADO,
+                )
+            ).scalars()
+        }
+
         novos_indicadores = []
         for ind_dados in campos["indicadores"]:
             unidade_ids = ind_dados.pop("unidade_ids", [])
             etapas_nomes = ind_dados.pop("etapas", [])
+
+            antigo = next(
+                (
+                    ind
+                    for ind in indicadores_atuais
+                    if ind.id not in ids_preservados
+                    and ind.nome == ind_dados.get("nome")
+                ),
+                None,
+            )
+            if antigo is not None and antigo.id in indicadores_com_aprova:
+                for campo, valor in ind_dados.items():
+                    if hasattr(antigo, campo):
+                        setattr(antigo, campo, valor)
+                if unidade_ids:
+                    antigo.unidades = list(
+                        db.scalars(
+                            select(models.Unidade).where(
+                                models.Unidade.id.in_(unidade_ids)
+                            )
+                        ).all()
+                    )
+                # Etapas já aprovadas permanecem; as novas entram ao final.
+                nomes_existentes = {e.nome for e in antigo.etapas}
+                for nome_etapa in etapas_nomes:
+                    if nome_etapa not in nomes_existentes:
+                        antigo.etapas.append(
+                            models.IndicadorEtapa(nome=nome_etapa)
+                        )
+                        nomes_existentes.add(nome_etapa)
+                novos_indicadores.append(antigo)
+                ids_preservados.add(antigo.id)
+                continue
+
             indicador = models.Indicador(**ind_dados)
             if unidade_ids:
                 indicador.unidades = list(

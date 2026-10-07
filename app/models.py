@@ -71,14 +71,19 @@ class Iniciativa(Base):
     )
 
     @property
-    def progresso(self) -> float:
+    def progresso(self) -> float | None:
         indicadores = self.indicadores
         if not indicadores:
             return 0.0
-        total = sum(len(i.etapas) for i in indicadores)
+        # Indicador sem etapa não tem denominador: ele não pode entrar nem no
+        # numerador nem no denominador. Se entrasse só no numerador, um único
+        # documento aprovado em indicador sem etapas faria a iniciativa passar
+        # de 100%.
+        mensuraveis = [i for i in indicadores if i.etapas]
+        total = sum(len(i.etapas) for i in mensuraveis)
         if total == 0:
             return 0.0
-        acumulado = sum(i.acumulado_efetivo for i in indicadores)
+        acumulado = sum(i.acumulado_efetivo for i in mensuraveis)
         return round((acumulado / total) * 100, 1)
 
 
@@ -159,10 +164,13 @@ class Indicador(Base):
         return self.valor_acumulado
 
     @property
-    def progresso(self) -> float:
+    def progresso(self) -> float | None:
+        # Sem etapa não existe denominador, então não existe progresso a
+        # calcular. Devolver 0 seria mentir: o indicador não está em 0%, está
+        # sem forma de ser medido. None é o que a tela traduz como "—".
         total = len(self.etapas)
         if total == 0:
-            return 0.0
+            return None
         return round((self.acumulado_efetivo / total) * 100, 1)
 
 
@@ -172,11 +180,23 @@ class IndicadorEtapa(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     indicador_id: Mapped[int] = mapped_column(ForeignKey("indicadores.id", ondelete="CASCADE"))
     nome: Mapped[str] = mapped_column(Text)
+    # Etapa gerada por colaborador carrega a unidade de origem, para que cada
+    # setor comprove só os seus. Nulo em etapa cadastrada manualmente.
+    unidade_id: Mapped[int | None] = mapped_column(
+        ForeignKey("unidades.id", ondelete="CASCADE"), nullable=True
+    )
+    # Referência ao colaborador que originou a etapa, quando gerada. Preserva a
+    # origem mesmo se o nome do colaborador mudar depois.
+    colaborador_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora
     )
 
     indicador: Mapped["Indicador"] = relationship(back_populates="etapas")
+    unidade: Mapped["Unidade | None"] = relationship()
+    colaborador: Mapped["Usuario | None"] = relationship()
 
 
 class Comprovacao(Base):
